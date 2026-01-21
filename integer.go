@@ -11,7 +11,6 @@ func (u *Uint8) encode(state *State, value uint8) error {
 		return &EncodingErrorOutOfBounds{}
 	}
 
-	state.buffer = make([]byte, state.end)
 	state.buffer[state.start] = value
 	state.start += 1
 
