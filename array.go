@@ -37,7 +37,7 @@ func (a *Array[T]) decode(state *State) ([]T, error) {
 		return nil, err
 	}
 	result := make([]T, length)
-	for i := uint(0); i < length; i++ {
+	for i := range length {
 		result[i], err = a.elementEncoder.decode(state)
 		if err != nil {
 			return nil, err
