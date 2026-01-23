@@ -11,20 +11,29 @@ func TestString(t *testing.T) {
 	encoder := NewString()
 
 	Convey("string can be encoded", t, func() {
-		encoder.preencode(state, "hello world!")
+		encoder.preencode(state, "🌾")
+		So(state, ShouldResemble, &State{start: 0, end: 5, buffer: nil})
+		encoder.preencode(state, "høsten er fin")
+		So(state, ShouldResemble, &State{start: 0, end: 20, buffer: nil})
+
 		state.Allocate()
-
-		err := encoder.encode(state, "hello world!")
-
+		err := encoder.encode(state, "🌾")
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{12, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33})
-	})
+		So(state, ShouldResemble, &State{start: 5, end: 20, buffer: []byte{4, 240, 159, 140, 190, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}})
+		err = encoder.encode(state, "høsten er fin")
+		So(err, ShouldBeNil)
+		So(state, ShouldResemble, &State{start: 20, end: 20, buffer: []byte{4, 240, 159, 140, 190, 14, 104, 195, 184, 115, 116, 101, 110, 32, 101, 114, 32, 102, 105, 110}})
 
-	Convey("string can be decoded", t, func() {
 		state.Rewind()
 		value, err := encoder.decode(state)
-
 		So(err, ShouldBeNil)
-		So(value, ShouldEqual, "hello world!")
+		So(value, ShouldEqual, "🌾")
+
+		value, err = encoder.decode(state)
+		So(err, ShouldBeNil)
+		So(value, ShouldEqual, "høsten er fin")
+
+		_, err = encoder.decode(state)
+		So(err.Error(), ShouldEqual, "EncodingError: Out of Bounds")
 	})
 }
