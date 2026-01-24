@@ -1,29 +1,29 @@
 package compactencoding
 
 type Encoder[T any] interface {
-	preencode(state *State, value T)
-	encode(state *State, value T) error
-	decode(state *State) (T, error)
+	Preencode(state *State, value T)
+	Encode(state *State, value T) error
+	Decode(state *State) (T, error)
 }
 
 type Array[T any] struct {
 	elementEncoder Encoder[T]
 }
 
-func (a *Array[T]) preencode(state *State, value []T) {
-	NewUint().preencode(state, uint(len(value)))
+func (a *Array[T]) Preencode(state *State, value []T) {
+	NewUint().Preencode(state, uint(len(value)))
 	for _, e := range value {
-		a.elementEncoder.preencode(state, e)
+		a.elementEncoder.Preencode(state, e)
 	}
 }
 
-func (a *Array[T]) encode(state *State, value []T) error {
-	err := NewUint().encode(state, uint(len(value)))
+func (a *Array[T]) Encode(state *State, value []T) error {
+	err := NewUint().Encode(state, uint(len(value)))
 	if err != nil {
 		return err
 	}
 	for _, e := range value {
-		err = a.elementEncoder.encode(state, e)
+		err = a.elementEncoder.Encode(state, e)
 		if err != nil {
 			return err
 		}
@@ -31,14 +31,14 @@ func (a *Array[T]) encode(state *State, value []T) error {
 	return nil
 }
 
-func (a *Array[T]) decode(state *State) ([]T, error) {
-	length, err := NewUint().decode(state)
+func (a *Array[T]) Decode(state *State) ([]T, error) {
+	length, err := NewUint().Decode(state)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]T, length)
 	for i := range length {
-		result[i], err = a.elementEncoder.decode(state)
+		result[i], err = a.elementEncoder.Decode(state)
 		if err != nil {
 			return nil, err
 		}

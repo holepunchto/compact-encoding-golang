@@ -9,16 +9,16 @@ import (
 func TestArray(t *testing.T) {
 	Convey("uint8 array", t, func() {
 		state := &State{}
-		encoder := NewArray(NewUint())
-		encoder.preencode(state, []uint{1, 2, 3})
+		Encoder := NewArray(NewUint())
+		Encoder.Preencode(state, []uint{1, 2, 3})
 		state.Allocate()
 
-		err := encoder.encode(state, []uint{1, 2, 3})
+		err := Encoder.Encode(state, []uint{1, 2, 3})
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{3, 1, 2, 3})
+		So(state.Buffer, ShouldEqual, []byte{3, 1, 2, 3})
 		state.Rewind()
-		value, err := encoder.decode(state)
+		value, err := Encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, []uint{1, 2, 3})
@@ -26,16 +26,16 @@ func TestArray(t *testing.T) {
 
 	Convey("string array", t, func() {
 		state := &State{}
-		encoder := NewArray(NewString())
-		encoder.preencode(state, []string{"hello", "world"})
+		Encoder := NewArray(NewString())
+		Encoder.Preencode(state, []string{"hello", "world"})
 		state.Allocate()
 
-		err := encoder.encode(state, []string{"hello", "world"})
+		err := Encoder.Encode(state, []string{"hello", "world"})
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{2, 5, 104, 101, 108, 108, 111, 5, 119, 111, 114, 108, 100})
+		So(state.Buffer, ShouldEqual, []byte{2, 5, 104, 101, 108, 108, 111, 5, 119, 111, 114, 108, 100})
 		state.Rewind()
-		value, err := encoder.decode(state)
+		value, err := Encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, []string{"hello", "world"})

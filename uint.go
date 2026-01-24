@@ -2,28 +2,28 @@ package compactencoding
 
 type Uint8 struct{}
 
-func (u *Uint8) preencode(state *State) {
-	state.end += 1
+func (u *Uint8) Preencode(state *State) {
+	state.End += 1
 }
 
-func (u *Uint8) encode(state *State, value uint8) error {
-	if state.start >= state.end {
+func (u *Uint8) Encode(state *State, value uint8) error {
+	if state.Start >= state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
 
-	state.buffer[state.start] = value
-	state.start += 1
+	state.Buffer[state.Start] = value
+	state.Start += 1
 
 	return nil
 }
 
-func (u *Uint8) decode(state *State) (uint8, error) {
-	if state.start >= state.end {
+func (u *Uint8) Decode(state *State) (uint8, error) {
+	if state.Start >= state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
 
-	value := state.buffer[state.start]
-	state.start += 1
+	value := state.Buffer[state.Start]
+	state.Start += 1
 
 	return value, nil
 }
@@ -34,29 +34,29 @@ func NewUint8() *Uint8 {
 
 type Uint16 struct{}
 
-func (u *Uint16) preencode(state *State) {
-	state.end += 2
+func (u *Uint16) Preencode(state *State) {
+	state.End += 2
 }
 
-func (u *Uint16) encode(state *State, value uint16) error {
-	if state.start >= state.end {
+func (u *Uint16) Encode(state *State, value uint16) error {
+	if state.Start >= state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
 
-	state.buffer[state.start] = byte(value & 0xff)
-	state.buffer[state.start+1] = byte((value >> 8) & 0xff)
-	state.start += 2
+	state.Buffer[state.Start] = byte(value & 0xff)
+	state.Buffer[state.Start+1] = byte((value >> 8) & 0xff)
+	state.Start += 2
 
 	return nil
 }
 
-func (u *Uint16) decode(state *State) (uint16, error) {
-	if state.start >= state.end {
+func (u *Uint16) Decode(state *State) (uint16, error) {
+	if state.Start >= state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
 
-	value := uint16(state.buffer[state.start]) | uint16(state.buffer[state.start+1])<<8
-	state.start += 2
+	value := uint16(state.Buffer[state.Start]) | uint16(state.Buffer[state.Start+1])<<8
+	state.Start += 2
 
 	return value, nil
 }
@@ -67,31 +67,31 @@ func NewUint16() *Uint16 {
 
 type Uint32 struct{}
 
-func (u *Uint32) preencode(state *State) {
-	state.end += 4
+func (u *Uint32) Preencode(state *State) {
+	state.End += 4
 }
 
-func (u *Uint32) encode(state *State, value uint32) error {
-	if state.start+4 > state.end {
+func (u *Uint32) Encode(state *State, value uint32) error {
+	if state.Start+4 > state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
-	state.buffer[state.start] = byte(value)
-	state.buffer[state.start+1] = byte(value >> 8)
-	state.buffer[state.start+2] = byte(value >> 16)
-	state.buffer[state.start+3] = byte(value >> 24)
-	state.start += 4
+	state.Buffer[state.Start] = byte(value)
+	state.Buffer[state.Start+1] = byte(value >> 8)
+	state.Buffer[state.Start+2] = byte(value >> 16)
+	state.Buffer[state.Start+3] = byte(value >> 24)
+	state.Start += 4
 	return nil
 }
 
-func (u *Uint32) decode(state *State) (uint32, error) {
-	if state.start+4 > state.end {
+func (u *Uint32) Decode(state *State) (uint32, error) {
+	if state.Start+4 > state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
-	value := uint32(state.buffer[state.start]) |
-		uint32(state.buffer[state.start+1])<<8 |
-		uint32(state.buffer[state.start+2])<<16 |
-		uint32(state.buffer[state.start+3])<<24
-	state.start += 4
+	value := uint32(state.Buffer[state.Start]) |
+		uint32(state.Buffer[state.Start+1])<<8 |
+		uint32(state.Buffer[state.Start+2])<<16 |
+		uint32(state.Buffer[state.Start+3])<<24
+	state.Start += 4
 	return value, nil
 }
 
@@ -101,39 +101,39 @@ func NewUint32() *Uint32 {
 
 type Uint64 struct{}
 
-func (u *Uint64) preencode(state *State) {
-	state.end += 8
+func (u *Uint64) Preencode(state *State) {
+	state.End += 8
 }
 
-func (u *Uint64) encode(state *State, value uint64) error {
-	if state.start+8 > state.end {
+func (u *Uint64) Encode(state *State, value uint64) error {
+	if state.Start+8 > state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
-	state.buffer[state.start] = byte(value)
-	state.buffer[state.start+1] = byte(value >> 8)
-	state.buffer[state.start+2] = byte(value >> 16)
-	state.buffer[state.start+3] = byte(value >> 24)
-	state.buffer[state.start+4] = byte(value >> 32)
-	state.buffer[state.start+5] = byte(value >> 40)
-	state.buffer[state.start+6] = byte(value >> 48)
-	state.buffer[state.start+7] = byte(value >> 56)
-	state.start += 8
+	state.Buffer[state.Start] = byte(value)
+	state.Buffer[state.Start+1] = byte(value >> 8)
+	state.Buffer[state.Start+2] = byte(value >> 16)
+	state.Buffer[state.Start+3] = byte(value >> 24)
+	state.Buffer[state.Start+4] = byte(value >> 32)
+	state.Buffer[state.Start+5] = byte(value >> 40)
+	state.Buffer[state.Start+6] = byte(value >> 48)
+	state.Buffer[state.Start+7] = byte(value >> 56)
+	state.Start += 8
 	return nil
 }
 
-func (u *Uint64) decode(state *State) (uint64, error) {
-	if state.start+8 > state.end {
+func (u *Uint64) Decode(state *State) (uint64, error) {
+	if state.Start+8 > state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
-	value := uint64(state.buffer[state.start]) |
-		uint64(state.buffer[state.start+1])<<8 |
-		uint64(state.buffer[state.start+2])<<16 |
-		uint64(state.buffer[state.start+3])<<24 |
-		uint64(state.buffer[state.start+4])<<32 |
-		uint64(state.buffer[state.start+5])<<40 |
-		uint64(state.buffer[state.start+6])<<48 |
-		uint64(state.buffer[state.start+7])<<56
-	state.start += 8
+	value := uint64(state.Buffer[state.Start]) |
+		uint64(state.Buffer[state.Start+1])<<8 |
+		uint64(state.Buffer[state.Start+2])<<16 |
+		uint64(state.Buffer[state.Start+3])<<24 |
+		uint64(state.Buffer[state.Start+4])<<32 |
+		uint64(state.Buffer[state.Start+5])<<40 |
+		uint64(state.Buffer[state.Start+6])<<48 |
+		uint64(state.Buffer[state.Start+7])<<56
+	state.Start += 8
 	return value, nil
 }
 
@@ -143,45 +143,45 @@ func NewUint64() *Uint64 {
 
 type Uint struct{}
 
-func (u *Uint) preencode(state *State, value uint) {
+func (u *Uint) Preencode(state *State, value uint) {
 	if value <= 0xfc {
-		state.end += 1
+		state.End += 1
 	} else if value <= 0xffff {
-		state.end += 3
+		state.End += 3
 	} else if value <= 0xffffffff {
-		state.end += 5
+		state.End += 5
 	} else {
-		state.end += 9
+		state.End += 9
 	}
 }
 
-func (u *Uint) encode(state *State, value uint) error {
+func (u *Uint) Encode(state *State, value uint) error {
 	if value <= 0xfc {
-		return NewUint8().encode(state, uint8(value))
+		return NewUint8().Encode(state, uint8(value))
 	}
-	if state.start >= state.end {
+	if state.Start >= state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
 	if value <= 0xffff {
-		state.buffer[state.start] = 0xfd
-		state.start += 1
-		return NewUint16().encode(state, uint16(value))
+		state.Buffer[state.Start] = 0xfd
+		state.Start += 1
+		return NewUint16().Encode(state, uint16(value))
 	}
 	if value <= 0xffffffff {
-		state.buffer[state.start] = 0xfe
-		state.start += 1
-		return NewUint32().encode(state, uint32(value))
+		state.Buffer[state.Start] = 0xfe
+		state.Start += 1
+		return NewUint32().Encode(state, uint32(value))
 	}
-	state.buffer[state.start] = 0xff
-	state.start += 1
-	return NewUint64().encode(state, uint64(value))
+	state.Buffer[state.Start] = 0xff
+	state.Start += 1
+	return NewUint64().Encode(state, uint64(value))
 }
 
-func (u *Uint) decode(state *State) (uint, error) {
-	if state.start >= state.end {
+func (u *Uint) Decode(state *State) (uint, error) {
+	if state.Start >= state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
-	value, err := NewUint8().decode(state)
+	value, err := NewUint8().Decode(state)
 	if err != nil {
 		return 0, err
 	}
@@ -189,15 +189,15 @@ func (u *Uint) decode(state *State) (uint, error) {
 		return uint(value), nil
 	}
 	if value == 0xfd {
-		v, err := NewUint16().decode(state)
+		v, err := NewUint16().Decode(state)
 		return uint(v), err
 	}
 	if value == 0xfe {
-		v, err := NewUint32().decode(state)
+		v, err := NewUint32().Decode(state)
 		return uint(v), err
 	}
 
-	v, err := NewUint64().decode(state)
+	v, err := NewUint64().Decode(state)
 	return uint(v), err
 }
 

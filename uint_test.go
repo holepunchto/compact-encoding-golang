@@ -12,19 +12,19 @@ func TestUint8(t *testing.T) {
 	encoder := NewUint8()
 
 	Convey("uint8 can be encoded", t, func() {
-		encoder.preencode(state)
+		encoder.Preencode(state)
 		state.Allocate()
 
-		err := encoder.encode(state, 12)
+		err := encoder.Encode(state, 12)
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{12})
+		So(state.Buffer, ShouldEqual, []byte{12})
 	})
 
-	Convey("uint8 can be decoded", t, func() {
+	Convey("uint8 can be Decoded", t, func() {
 		state.Rewind()
 		fmt.Println(state)
-		value, err := encoder.decode(state)
+		value, err := encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, 12)
@@ -36,19 +36,19 @@ func TestUint16(t *testing.T) {
 	encoder := NewUint16()
 
 	Convey("uint16 can be encoded", t, func() {
-		encoder.preencode(state)
+		encoder.Preencode(state)
 		state.Allocate()
 
-		err := encoder.encode(state, 12|(34<<8))
+		err := encoder.Encode(state, 12|(34<<8))
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{12, 34})
+		So(state.Buffer, ShouldEqual, []byte{12, 34})
 	})
 
-	Convey("uint16 can be decoded", t, func() {
+	Convey("uint16 can be Decoded", t, func() {
 		state.Rewind()
 
-		value, err := encoder.decode(state)
+		value, err := encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, 12|(34<<8))
@@ -60,19 +60,19 @@ func TestUint32(t *testing.T) {
 	encoder := NewUint32()
 
 	Convey("uint32 can be encoded", t, func() {
-		encoder.preencode(state)
+		encoder.Preencode(state)
 		state.Allocate()
 
-		err := encoder.encode(state, 12|(34<<8)|(56<<16)|(78<<24))
+		err := encoder.Encode(state, 12|(34<<8)|(56<<16)|(78<<24))
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{12, 34, 56, 78})
+		So(state.Buffer, ShouldEqual, []byte{12, 34, 56, 78})
 	})
 
-	Convey("uint32 can be decoded", t, func() {
+	Convey("uint32 can be Decoded", t, func() {
 		state.Rewind()
 
-		value, err := encoder.decode(state)
+		value, err := encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, 12|(34<<8)|(56<<16)|(78<<24))
@@ -84,19 +84,19 @@ func TestUint64(t *testing.T) {
 	encoder := NewUint64()
 
 	Convey("uint8 can be encoded", t, func() {
-		encoder.preencode(state)
+		encoder.Preencode(state)
 		state.Allocate()
 
-		err := encoder.encode(state, 12|(34<<8)|(56<<16)|(78<<24)|(90<<32)|(12<<40)|(34<<48)|(56<<56))
+		err := encoder.Encode(state, 12|(34<<8)|(56<<16)|(78<<24)|(90<<32)|(12<<40)|(34<<48)|(56<<56))
 
 		So(err, ShouldBeNil)
-		So(state.buffer, ShouldEqual, []byte{12, 34, 56, 78, 90, 12, 34, 56})
+		So(state.Buffer, ShouldEqual, []byte{12, 34, 56, 78, 90, 12, 34, 56})
 	})
 
-	Convey("uint32 can be decoded", t, func() {
+	Convey("uint32 can be Decoded", t, func() {
 		state.Rewind()
 
-		value, err := encoder.decode(state)
+		value, err := encoder.Decode(state)
 
 		So(err, ShouldBeNil)
 		So(value, ShouldEqual, 12|(34<<8)|(56<<16)|(78<<24)|(90<<32)|(12<<40)|(34<<48)|(56<<56))
@@ -119,15 +119,15 @@ func TestUint(t *testing.T) {
 			state := &State{}
 			encoder := NewUint()
 
-			encoder.preencode(state, v.Value)
+			encoder.Preencode(state, v.Value)
 			state.Allocate()
-			err := encoder.encode(state, v.Value)
+			err := encoder.Encode(state, v.Value)
 
 			So(err, ShouldBeNil)
-			So(state.buffer, ShouldEqual, v.Encoding)
+			So(state.Buffer, ShouldEqual, v.Encoding)
 
 			state.Rewind()
-			value, err := encoder.decode(state)
+			value, err := encoder.Decode(state)
 			So(err, ShouldBeNil)
 			So(value, ShouldEqual, v.Value)
 		})

@@ -2,17 +2,17 @@ package compactencoding
 
 type Int8 struct{}
 
-func (i *Int8) preencode(state *State) {
-	state.end += 1
+func (i *Int8) Preencode(state *State) {
+	state.End += 1
 }
 
-func (i *Int8) encode(state *State, value int8) error {
-	encoded := uint8((value << 1) ^ (value >> 7))
-	return NewUint8().encode(state, encoded)
+func (i *Int8) Encode(state *State, value int8) error {
+	Encoded := uint8((value << 1) ^ (value >> 7))
+	return NewUint8().Encode(state, Encoded)
 }
 
-func (i *Int8) decode(state *State) (int8, error) {
-	v, err := NewUint8().decode(state)
+func (i *Int8) Decode(state *State) (int8, error) {
+	v, err := NewUint8().Decode(state)
 	if err != nil {
 		return 0, err
 	}
@@ -25,17 +25,17 @@ func NewInt8() *Int8 {
 
 type Int16 struct{}
 
-func (i *Int16) preencode(state *State) {
-	state.end += 2
+func (i *Int16) Preencode(state *State) {
+	state.End += 2
 }
 
-func (i *Int16) encode(state *State, value int16) error {
-	encoded := uint16((value << 1) ^ (value >> 15))
-	return NewUint16().encode(state, encoded)
+func (i *Int16) Encode(state *State, value int16) error {
+	Encoded := uint16((value << 1) ^ (value >> 15))
+	return NewUint16().Encode(state, Encoded)
 }
 
-func (i *Int16) decode(state *State) (int16, error) {
-	v, err := NewUint16().decode(state)
+func (i *Int16) Decode(state *State) (int16, error) {
+	v, err := NewUint16().Decode(state)
 	if err != nil {
 		return 0, err
 	}
@@ -48,17 +48,17 @@ func NewInt16() *Int16 {
 
 type Int32 struct{}
 
-func (i *Int32) preencode(state *State) {
-	state.end += 4
+func (i *Int32) Preencode(state *State) {
+	state.End += 4
 }
 
-func (i *Int32) encode(state *State, value int32) error {
-	encoded := uint32((value << 1) ^ (value >> 31))
-	return NewUint32().encode(state, encoded)
+func (i *Int32) Encode(state *State, value int32) error {
+	Encoded := uint32((value << 1) ^ (value >> 31))
+	return NewUint32().Encode(state, Encoded)
 }
 
-func (i *Int32) decode(state *State) (int32, error) {
-	v, err := NewUint32().decode(state)
+func (i *Int32) Decode(state *State) (int32, error) {
+	v, err := NewUint32().Decode(state)
 	if err != nil {
 		return 0, err
 	}
@@ -71,17 +71,17 @@ func NewInt32() *Int32 {
 
 type Int64 struct{}
 
-func (i *Int64) preencode(state *State) {
-	state.end += 8
+func (i *Int64) Preencode(state *State) {
+	state.End += 8
 }
 
-func (i *Int64) encode(state *State, value int64) error {
-	encoded := uint64((value << 1) ^ (value >> 63))
-	return NewUint64().encode(state, encoded)
+func (i *Int64) Encode(state *State, value int64) error {
+	Encoded := uint64((value << 1) ^ (value >> 63))
+	return NewUint64().Encode(state, Encoded)
 }
 
-func (i *Int64) decode(state *State) (int64, error) {
-	v, err := NewUint64().decode(state)
+func (i *Int64) Decode(state *State) (int64, error) {
+	v, err := NewUint64().Decode(state)
 	if err != nil {
 		return 0, err
 	}
@@ -94,18 +94,18 @@ func NewInt64() *Int64 {
 
 type Int struct{}
 
-func (i *Int) preencode(state *State, value int) {
-	encoded := uint((value << 1) ^ (value >> 63))
-	NewUint().preencode(state, encoded)
+func (i *Int) Preencode(state *State, value int) {
+	Encoded := uint((value << 1) ^ (value >> 63))
+	NewUint().Preencode(state, Encoded)
 }
 
-func (i *Int) encode(state *State, value int) error {
-	encoded := uint((value << 1) ^ (value >> 63))
-	return NewUint().encode(state, encoded)
+func (i *Int) Encode(state *State, value int) error {
+	Encoded := uint((value << 1) ^ (value >> 63))
+	return NewUint().Encode(state, Encoded)
 }
 
-func (i *Int) decode(state *State) (int, error) {
-	v, err := NewUint().decode(state)
+func (i *Int) Decode(state *State) (int, error) {
+	v, err := NewUint().Decode(state)
 	if err != nil {
 		return 0, err
 	}

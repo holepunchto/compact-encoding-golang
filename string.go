@@ -2,38 +2,38 @@ package compactencoding
 
 type String struct{}
 
-func (s *String) preencode(state *State, value string) {
-	NewUint().preencode(state, uint(len(value)))
-	state.end += uint(len(value))
+func (s *String) Preencode(state *State, value string) {
+	NewUint().Preencode(state, uint(len(value)))
+	state.End += uint(len(value))
 }
 
-func (s *String) encode(state *State, value string) error {
+func (s *String) Encode(state *State, value string) error {
 	count := uint(len(value))
-	err := NewUint().encode(state, uint(count))
+	err := NewUint().Encode(state, uint(count))
 	if err != nil {
 		return err
 	}
 
-	if state.start+count > state.end {
+	if state.Start+count > state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
 
-	copy(state.buffer[state.start:], value)
-	state.start += count
+	copy(state.Buffer[state.Start:], value)
+	state.Start += count
 
 	return nil
 }
 
-func (s *String) decode(state *State) (string, error) {
-	count, err := NewUint().decode(state)
+func (s *String) Decode(state *State) (string, error) {
+	count, err := NewUint().Decode(state)
 	if err != nil {
 		return "", err
 	}
-	if state.start+uint(int(count)) > state.end {
+	if state.Start+uint(int(count)) > state.End {
 		return "", &EncodingErrorOutOfBounds{}
 	}
-	value := string(state.buffer[state.start : state.start+uint(int(count))])
-	state.start += uint(int(count))
+	value := string(state.Buffer[state.Start : state.Start+uint(int(count))])
+	state.Start += uint(int(count))
 	return value, nil
 }
 

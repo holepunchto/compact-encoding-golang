@@ -1,15 +1,19 @@
 package compactencoding
 
 type State struct {
-	end    uint
-	start  uint
-	buffer []byte
+	End    uint
+	Start  uint
+	Buffer []byte
 }
 
 func (state *State) Rewind() {
-	state.start = 0
+	state.Start = 0
 }
 
 func (state *State) Allocate() {
-	state.buffer = make([]byte, state.end)
+	state.Buffer = make([]byte, state.End)
+}
+
+func NewState(buf []byte) *State {
+	return &State{End: uint(len(buf)), Buffer: buf}
 }

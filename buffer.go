@@ -2,49 +2,49 @@ package compactencoding
 
 type Buffer struct{}
 
-func (b *Buffer) preencode(state *State, value []byte) {
+func (b *Buffer) Preencode(state *State, value []byte) {
 	if value != nil {
-		NewUint().preencode(state, uint(len(value)))
-		state.end += uint(len(value))
+		NewUint().Preencode(state, uint(len(value)))
+		state.End += uint(len(value))
 	} else {
-		state.end += 1
+		state.End += 1
 	}
 }
 
-func (b *Buffer) encode(state *State, value []byte) error {
+func (b *Buffer) Encode(state *State, value []byte) error {
 	if value != nil {
-		err := NewUint().encode(state, uint(len(value)))
+		err := NewUint().Encode(state, uint(len(value)))
 		if err != nil {
 			return err
 		}
-		if state.start+uint(len(value)) > state.end {
+		if state.Start+uint(len(value)) > state.End {
 			return &EncodingErrorOutOfBounds{}
 		}
-		copy(state.buffer[state.start:], value)
-		state.start += uint(len(value))
+		copy(state.Buffer[state.Start:], value)
+		state.Start += uint(len(value))
 	} else {
-		if state.start >= state.end {
+		if state.Start >= state.End {
 			return &EncodingErrorOutOfBounds{}
 		}
-		state.buffer[state.start] = 0
-		state.start += 1
+		state.Buffer[state.Start] = 0
+		state.Start += 1
 	}
 	return nil
 }
 
-func (b *Buffer) decode(state *State) ([]byte, error) {
-	length, err := NewUint().decode(state)
+func (b *Buffer) Decode(state *State) ([]byte, error) {
+	length, err := NewUint().Decode(state)
 	if err != nil {
 		return nil, err
 	}
 	if length == 0 {
 		return nil, nil
 	}
-	if state.start+uint(length) > state.end {
+	if state.Start+uint(length) > state.End {
 		return nil, &EncodingErrorOutOfBounds{}
 	}
-	value := state.buffer[state.start : state.start+uint(length)]
-	state.start += uint(length)
+	value := state.Buffer[state.Start : state.Start+uint(length)]
+	state.Start += uint(length)
 
 	return value, nil
 }
