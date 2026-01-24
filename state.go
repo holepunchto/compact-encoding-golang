@@ -14,6 +14,6 @@ func (state *State) Allocate() {
 	state.Buffer = make([]byte, state.End)
 }
 
-func NewState(buf []byte) *State {
-	return &State{End: uint(len(buf)), Buffer: buf}
+func NewState() *State {
+	return &State{}
 }
