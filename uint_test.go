@@ -12,7 +12,7 @@ func TestUint8(t *testing.T) {
 	encoder := NewUint8()
 
 	Convey("uint8 can be encoded", t, func() {
-		encoder.Preencode(state)
+		encoder.Preencode(state, 12)
 		state.Allocate()
 
 		err := encoder.Encode(state, 12)
@@ -36,7 +36,7 @@ func TestUint16(t *testing.T) {
 	encoder := NewUint16()
 
 	Convey("uint16 can be encoded", t, func() {
-		encoder.Preencode(state)
+		encoder.Preencode(state, 12|(34<<8))
 		state.Allocate()
 
 		err := encoder.Encode(state, 12|(34<<8))
@@ -60,7 +60,7 @@ func TestUint32(t *testing.T) {
 	encoder := NewUint32()
 
 	Convey("uint32 can be encoded", t, func() {
-		encoder.Preencode(state)
+		encoder.Preencode(state, 12|(34<<8)|(56<<16)|(78<<24))
 		state.Allocate()
 
 		err := encoder.Encode(state, 12|(34<<8)|(56<<16)|(78<<24))
@@ -84,7 +84,7 @@ func TestUint64(t *testing.T) {
 	encoder := NewUint64()
 
 	Convey("uint8 can be encoded", t, func() {
-		encoder.Preencode(state)
+		encoder.Preencode(state, 12|(34<<8)|(56<<16)|(78<<24)|(90<<32)|(12<<40)|(34<<48)|(56<<56))
 		state.Allocate()
 
 		err := encoder.Encode(state, 12|(34<<8)|(56<<16)|(78<<24)|(90<<32)|(12<<40)|(34<<48)|(56<<56))

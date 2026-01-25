@@ -2,7 +2,7 @@ package compactencoding
 
 type Int8 struct{}
 
-func (i *Int8) Preencode(state *State) {
+func (i *Int8) Preencode(state *State, _value int8) {
 	state.End += 1
 }
 
@@ -25,7 +25,7 @@ func NewInt8() *Int8 {
 
 type Int16 struct{}
 
-func (i *Int16) Preencode(state *State) {
+func (i *Int16) Preencode(state *State, _value int16) {
 	state.End += 2
 }
 
@@ -48,7 +48,7 @@ func NewInt16() *Int16 {
 
 type Int32 struct{}
 
-func (i *Int32) Preencode(state *State) {
+func (i *Int32) Preencode(state *State, _value int32) {
 	state.End += 4
 }
 
@@ -71,7 +71,7 @@ func NewInt32() *Int32 {
 
 type Int64 struct{}
 
-func (i *Int64) Preencode(state *State) {
+func (i *Int64) Preencode(state *State, _value int64) {
 	state.End += 8
 }
 

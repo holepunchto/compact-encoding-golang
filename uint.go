@@ -2,7 +2,7 @@ package compactencoding
 
 type Uint8 struct{}
 
-func (u *Uint8) Preencode(state *State) {
+func (u *Uint8) Preencode(state *State, _value uint8) {
 	state.End += 1
 }
 
@@ -34,7 +34,7 @@ func NewUint8() *Uint8 {
 
 type Uint16 struct{}
 
-func (u *Uint16) Preencode(state *State) {
+func (u *Uint16) Preencode(state *State, _value uint16) {
 	state.End += 2
 }
 
@@ -67,7 +67,7 @@ func NewUint16() *Uint16 {
 
 type Uint32 struct{}
 
-func (u *Uint32) Preencode(state *State) {
+func (u *Uint32) Preencode(state *State, _value uint32) {
 	state.End += 4
 }
 
@@ -101,7 +101,7 @@ func NewUint32() *Uint32 {
 
 type Uint64 struct{}
 
-func (u *Uint64) Preencode(state *State) {
+func (u *Uint64) Preencode(state *State, _value uint64) {
 	state.End += 8
 }
 

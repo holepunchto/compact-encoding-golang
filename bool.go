@@ -2,7 +2,7 @@ package compactencoding
 
 type Bool struct{}
 
-func (i *Bool) Preencode(state *State) {
+func (i *Bool) Preencode(state *State, _value bool) {
 	state.End++
 }
 
