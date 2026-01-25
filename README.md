@@ -10,7 +10,7 @@ This is a Go implementation of the compact-encoding format, providing efficient 
 
 ## Installation
 ```bash
-go get github.com/yourusername/compact-encoding
+go get github.com/holepunchto/compact-encoding-golang
 ```
 
 ## Features
@@ -31,7 +31,7 @@ package main
 
 import (
     "fmt"
-    enc "github.com/yourusername/compact-encoding"
+    enc "github.com/holepunchto/compact-encoding-golang"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module holepunch.to/compactencoding
+module github.com/holepunchto/compact-encoding-golang
 
 go 1.25.6
 
