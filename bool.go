@@ -23,7 +23,10 @@ func (i *Bool) Decode(state *State) (bool, error) {
 		return false, &EncodingErrorOutOfBounds{}
 	}
 
-	return state.Buffer[0] == 1, nil
+	value := state.Buffer[state.Start]
+	state.Start += 1
+
+	return value == 1, nil
 }
 
 func NewBool() *Bool {
