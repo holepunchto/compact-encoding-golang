@@ -3,17 +3,18 @@ package compactencoding
 type Bool struct{}
 
 func (i *Bool) Preencode(state *State, _value bool) {
-	state.End++
+	state.End += 1
 }
 
 func (i *Bool) Encode(state *State, value bool) error {
-	if value {
-		state.Buffer[0] = 1
-	} else {
-		state.Buffer[0] = 0
+	if state.Start >= state.End {
+		return &EncodingErrorOutOfBounds{}
 	}
 
-	state.Start = 1
+	if value {
+		state.Buffer[state.Start] = 1
+	}
+	state.Start += 1
 
 	return nil
 }

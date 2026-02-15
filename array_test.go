@@ -41,3 +41,17 @@ func TestArray(t *testing.T) {
 		So(value, ShouldEqual, []string{"hello", "world"})
 	})
 }
+
+func TestArrayExisting(t *testing.T) {
+	Convey("existing buffer", t, func() {
+		state := &State{}
+		state.Buffer = []byte{2, 3, 111, 110, 101, 3, 116, 119, 111}
+		state.End = 9
+
+		Encoder := NewArray(NewString())
+		value, err := Encoder.Decode(state)
+
+		So(err, ShouldBeNil)
+		So(value, ShouldEqual, []string{"one", "two"})
+	})
+}
