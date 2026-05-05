@@ -10,14 +10,6 @@ func TestBuffer(t *testing.T) {
 	state := &State{}
 	Encoder := NewBuffer()
 
-	// state.Start = 0
-	// t.alike(enc.buffer.Decode(state), b4a.from('hi'))
-	// t.alike(enc.buffer.Decode(state), b4a.from('hello'))
-	// t.is(enc.buffer.Decode(state), null)
-	// t.is(state.Start, state.End)
-
-	// t.exception(() => enc.buffer.Decode(state))
-
 	Convey("buffer can be Encoded", t, func() {
 		Encoder.Preencode(state, []byte("hi"))
 		So(state, ShouldResemble, &State{Start: 0, End: 3, Buffer: nil})
@@ -52,7 +44,7 @@ func TestBuffer(t *testing.T) {
 
 		value, err = Encoder.Decode(state)
 		So(err, ShouldBeNil)
-		So(value == nil, ShouldBeTrue) // goconvey returns []byte(nil)
+		So(value, ShouldEqual, []byte{})
 
 		_, err = Encoder.Decode(state)
 		So(err.Error(), ShouldEqual, "EncodingError: Out of Bounds")
