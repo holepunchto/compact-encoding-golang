@@ -61,6 +61,45 @@ func Unmarshal(data []byte, v any) error {
 	return decodeReflect(state, rv.Elem())
 }
 
+// PreencodeInto accumulates the encoded size of v into state.End without
+// writing any bytes. Use together with EncodeInto to pack multiple values into
+// a single pre-allocated buffer.
+func PreencodeInto(state *State, v any) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return fmt.Errorf("compact: PreencodeInto of nil pointer")
+		}
+		rv = rv.Elem()
+	}
+	return preencodeReflect(state, rv)
+}
+
+// EncodeInto writes v into state.Buffer at state.Start, advancing state.Start.
+// state.Buffer must be allocated (e.g. via state.Allocate) before calling.
+func EncodeInto(state *State, v any) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return fmt.Errorf("compact: EncodeInto of nil pointer")
+		}
+		rv = rv.Elem()
+	}
+	return encodeReflect(state, rv)
+}
+
+// DecodeFrom reads from state into v, advancing state.Start past the decoded bytes.
+// v must be a non-nil pointer. Use when decoding multiple values from a shared
+// State created over an existing byte slice.
+func DecodeFrom(state *State, v any) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return fmt.Errorf("compact: DecodeFrom requires a non-nil pointer")
+	}
+	return decodeReflect(state, rv.Elem())
+}
+
+
 func preencodeReflect(state *State, rv reflect.Value) error {
 	switch rv.Kind() {
 	case reflect.Struct:
