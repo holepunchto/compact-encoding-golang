@@ -70,8 +70,13 @@ func checkJSON[T any](t *testing.T, enc Encoder[T], v vector) {
 	checkVector(t, enc, v, value)
 }
 
+// A JSON null stands for a nil slice; a hex string is the payload.
 func checkHexBytes(t *testing.T, enc Encoder[[]byte], v vector) {
 	t.Helper()
+	if string(v.Value) == "null" {
+		checkVector(t, enc, v, nil)
+		return
+	}
 	var s string
 	if err := json.Unmarshal(v.Value, &s); err != nil {
 		t.Fatal(err)
@@ -123,6 +128,8 @@ func TestJSVectors(t *testing.T) {
 			checkJSON(t, NewBool(), v)
 		case "buffer":
 			checkHexBytes(t, NewBuffer(), v)
+		case "optionalBuffer":
+			checkHexBytes(t, NewOptionalBuffer(), v)
 		case "array:uint":
 			checkJSON(t, NewArray(NewUint()), v)
 		case "array:int":

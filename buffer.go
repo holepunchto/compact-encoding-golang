@@ -49,3 +49,28 @@ func (b *Buffer) Decode(state *State) ([]byte, error) {
 func NewBuffer() *Buffer {
 	return &Buffer{}
 }
+
+// OptionalBuffer is the pre-3.0 buffer codec kept in JS as optionalBuffer: a
+// nil slice encodes as a single zero byte and a zero-length payload decodes to
+// nil. An empty non-nil slice therefore comes back as nil after a round trip.
+type OptionalBuffer struct{}
+
+func (b *OptionalBuffer) Preencode(state *State, value []byte) {
+	NewBuffer().Preencode(state, value)
+}
+
+func (b *OptionalBuffer) Encode(state *State, value []byte) error {
+	return NewBuffer().Encode(state, value)
+}
+
+func (b *OptionalBuffer) Decode(state *State) ([]byte, error) {
+	value, err := NewBuffer().Decode(state)
+	if err != nil || len(value) == 0 {
+		return nil, err
+	}
+	return value, nil
+}
+
+func NewOptionalBuffer() *OptionalBuffer {
+	return &OptionalBuffer{}
+}

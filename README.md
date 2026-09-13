@@ -18,7 +18,7 @@ go get github.com/holepunchto/compact-encoding-golang
 - ✅ Variable-length integer encoding (uint, int)
 - ✅ Fixed-size integer types (uint8, uint16, uint32, uint64, int8, int16, int32, int64)
 - ✅ String encoding
-- ✅ Buffer/byte slice encoding
+- ✅ Buffer/byte slice encoding (`Buffer`, and `OptionalBuffer` for nil-able payloads)
 - ✅ Boolean encoding
 - ✅ Array encoding with generic element types
 - ✅ Generic `Decode`/`Encode` helpers
@@ -95,6 +95,7 @@ buf, err := enc.Encode(uintEncoder, []uint{1, 2, 3})
 - `NewInt8()`, `NewInt16()`, `NewInt32()`, `NewInt64()` - Fixed-size signed integers
 - `NewString()` - UTF-8 string encoding
 - `NewBuffer()` - Byte slice encoding
+- `NewOptionalBuffer()` - Byte slice encoding where `nil` is a distinct value (decodes empty payloads as `nil`)
 - `NewBool()` - Boolean encoding
 - `NewArray(elementEncoder)` - Generic array encoding
 
@@ -123,14 +124,14 @@ node testdata/gen-vectors.js /path/to/compact-encoding > testdata/vectors.json
 
 Behaviour shared with the JS library:
 
-- `buffer` follows the JS 3.x semantics: a `nil` slice encodes as length `0` and an empty payload decodes to an empty (non-nil) slice, never `nil`. The JS `optionalBuffer` codec, which decodes an empty payload as `null`, is not ported.
+- `buffer` follows the JS 3.x semantics: a `nil` slice encodes as length `0` and an empty payload decodes to an empty (non-nil) slice, never `nil`. `optionalBuffer` keeps the pre-3.0 behaviour and decodes an empty payload as `nil`. Both share the same bytes on the wire.
 - `array` refuses to decode more than `MaxArrayLength` (`0x100000`) elements, returning `EncodingErrorArrayTooBig`, exactly as the JS decoder throws `Array is too big`.
 - Truncated or oversized input returns `EncodingErrorOutOfBounds` rather than panicking.
 
 Differences to be aware of:
 
 - **Integer range.** JS numbers are IEEE doubles, so the JS library rejects `uint`/`uint64` values above `2^53 - 1` and `int`/`int64` values outside `±2^52` (it throws on both encode and decode). Go encodes the full 64-bit range. Values outside the JS-safe range will round-trip between Go peers but fail to decode in JS; use the JS `biguint64`/`bigint64`/`biguint`/`bigint` codecs on that side, which share the fixed 8-byte wire format with Go `uint64`/`int64`.
-- **Unported codecs.** The JS library also ships `uint24`, `uint40`, `uint48`, `uint56`, `uint32be`, `uint64be` and their `int` counterparts, `biguint`/`bigint`, `lexint`, `float32`/`float64`, `optionalBuffer`, `binary`, `arraybuffer`, `bitarray`, typed arrays, `ascii`/`hex`/`base64`/`utf16le` strings, `fixed(n)` and `fixed8..64`, `frame`, `date`, `json`/`ndjson`, `none`, `any`, `record`/`stringRecord`, the `ip`/`port`/`*Address` network codecs, and the `raw` (unframed) variants. None of these exist in the Go port yet.
+- **Unported codecs.** The JS library also ships `uint24`, `uint40`, `uint48`, `uint56`, `uint32be`, `uint64be` and their `int` counterparts, `biguint`/`bigint`, `lexint`, `float32`/`float64`, `binary`, `arraybuffer`, `bitarray`, typed arrays, `ascii`/`hex`/`base64`/`utf16le` strings, `fixed(n)` and `fixed8..64`, `frame`, `date`, `json`/`ndjson`, `none`, `any`, `record`/`stringRecord`, the `ip`/`port`/`*Address` network codecs, and the `raw` (unframed) variants. None of these exist in the Go port yet.
 
 ## License
 

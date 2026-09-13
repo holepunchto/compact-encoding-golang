@@ -40,6 +40,12 @@ for (const b of [[], [0], [1, 2, 3], Array.from({ length: 300 }, (_, i) => i & 0
   add('buffer', c.buffer, buf, b4a.toString(buf, 'hex'))
 }
 
+add('optionalBuffer', c.optionalBuffer, null)
+for (const b of [[0], [1, 2, 3], Array.from({ length: 300 }, (_, i) => i & 0xff)]) {
+  const buf = b4a.from(b)
+  add('optionalBuffer', c.optionalBuffer, buf, b4a.toString(buf, 'hex'))
+}
+
 add('bool', c.bool, true)
 add('bool', c.bool, false)
 

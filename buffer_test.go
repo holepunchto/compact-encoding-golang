@@ -50,3 +50,42 @@ func TestBuffer(t *testing.T) {
 		So(err.Error(), ShouldEqual, "EncodingError: Out of Bounds")
 	})
 }
+
+func TestOptionalBuffer(t *testing.T) {
+	Encoder := NewOptionalBuffer()
+
+	Convey("nil encodes as a single zero byte and decodes back to nil", t, func() {
+		buf, err := Encode(Encoder, nil)
+		So(err, ShouldBeNil)
+		So(buf, ShouldResemble, []byte{0})
+
+		value, err := Decode(Encoder, buf)
+		So(err, ShouldBeNil)
+		So(value, ShouldBeNil)
+	})
+
+	Convey("an empty slice collapses to nil on decode", t, func() {
+		buf, err := Encode(Encoder, []byte{})
+		So(err, ShouldBeNil)
+		So(buf, ShouldResemble, []byte{0})
+
+		value, err := Decode(Encoder, buf)
+		So(err, ShouldBeNil)
+		So(value, ShouldBeNil)
+	})
+
+	Convey("data round-trips", t, func() {
+		buf, err := Encode(Encoder, []byte("hi"))
+		So(err, ShouldBeNil)
+		So(buf, ShouldResemble, []byte{2, 104, 105})
+
+		value, err := Decode(Encoder, buf)
+		So(err, ShouldBeNil)
+		So(value, ShouldResemble, []byte("hi"))
+	})
+
+	Convey("truncated input is out of bounds", t, func() {
+		_, err := Decode(Encoder, []byte{5, 1})
+		So(err, ShouldHaveSameTypeAs, &EncodingErrorOutOfBounds{})
+	})
+}
