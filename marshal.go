@@ -5,10 +5,27 @@ import (
 	"reflect"
 )
 
+// Marshaler is implemented by types that encode themselves. Marshal defers to it
+// for the value and for every nested field or element of such a type.
+type Marshaler interface {
+	Preencode(state *State)
+	Encode(state *State) error
+}
+
+// Unmarshaler is implemented by types that decode themselves; Unmarshal defers to it likewise.
+type Unmarshaler interface {
+	Decode(state *State) error
+}
+
+var (
+	marshalerType   = reflect.TypeFor[Marshaler]()
+	unmarshalerType = reflect.TypeFor[Unmarshaler]()
+)
+
 // Marshal encodes v into compact-encoding bytes. v may be a struct, pointer to
 // struct, or any scalar type supported by the library. Struct fields are
 // encoded in declaration order. Unexported fields and fields tagged
-// `compact:"-"` are skipped.
+// `compact:"-"` are skipped. A type implementing Marshaler encodes itself.
 //
 // Go type → codec mapping:
 //
@@ -35,6 +52,7 @@ func Marshal(v any) ([]byte, error) {
 		}
 		rv = rv.Elem()
 	}
+	rv = addressable(rv)
 	state := NewState()
 	if err := preencodeReflect(state, rv); err != nil {
 		return nil, err
@@ -99,7 +117,48 @@ func DecodeFrom(state *State, v any) error {
 	return decodeReflect(state, rv.Elem())
 }
 
+// addressable copies rv into fresh storage when it cannot be addressed, so pointer-receiver methods are reachable.
+func addressable(rv reflect.Value) reflect.Value {
+	if rv.CanAddr() {
+		return rv
+	}
+	p := reflect.New(rv.Type())
+	p.Elem().Set(rv)
+	return p.Elem()
+}
+
+// marshaler returns rv as a Marshaler when its type, or the pointer to it, implements one.
+func marshaler(rv reflect.Value) (Marshaler, bool) {
+	if rv.Type().Implements(marshalerType) {
+		return rv.Interface().(Marshaler), true
+	}
+	if rv.CanAddr() && reflect.PointerTo(rv.Type()).Implements(marshalerType) {
+		return rv.Addr().Interface().(Marshaler), true
+	}
+	return nil, false
+}
+
+func unmarshaler(rv reflect.Value) (Unmarshaler, bool) {
+	if rv.CanAddr() && reflect.PointerTo(rv.Type()).Implements(unmarshalerType) {
+		return rv.Addr().Interface().(Unmarshaler), true
+	}
+	if rv.Type().Implements(unmarshalerType) {
+		return rv.Interface().(Unmarshaler), true
+	}
+	return nil, false
+}
+
 func preencodeReflect(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return fmt.Errorf("compact: nil pointer in value")
+		}
+		return preencodeReflect(state, rv.Elem())
+	}
+	if m, ok := marshaler(rv); ok {
+		m.Preencode(state)
+		return nil
+	}
 	switch rv.Kind() {
 	case reflect.Struct:
 		t := rv.Type()
@@ -113,12 +172,6 @@ func preencodeReflect(state *State, rv reflect.Value) error {
 			}
 		}
 		return nil
-
-	case reflect.Ptr:
-		if rv.IsNil() {
-			return fmt.Errorf("compact: nil pointer in value")
-		}
-		return preencodeReflect(state, rv.Elem())
 
 	case reflect.String:
 		NewString().Preencode(state, rv.String())
@@ -173,6 +226,15 @@ func preencodeReflect(state *State, rv reflect.Value) error {
 }
 
 func encodeReflect(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return fmt.Errorf("compact: nil pointer in value")
+		}
+		return encodeReflect(state, rv.Elem())
+	}
+	if m, ok := marshaler(rv); ok {
+		return m.Encode(state)
+	}
 	switch rv.Kind() {
 	case reflect.Struct:
 		t := rv.Type()
@@ -186,12 +248,6 @@ func encodeReflect(state *State, rv reflect.Value) error {
 			}
 		}
 		return nil
-
-	case reflect.Ptr:
-		if rv.IsNil() {
-			return fmt.Errorf("compact: nil pointer in value")
-		}
-		return encodeReflect(state, rv.Elem())
 
 	case reflect.String:
 		return NewString().Encode(state, rv.String())
@@ -245,6 +301,15 @@ func encodeReflect(state *State, rv reflect.Value) error {
 }
 
 func decodeReflect(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			rv.Set(reflect.New(rv.Type().Elem()))
+		}
+		return decodeReflect(state, rv.Elem())
+	}
+	if u, ok := unmarshaler(rv); ok {
+		return u.Decode(state)
+	}
 	switch rv.Kind() {
 	case reflect.Struct:
 		t := rv.Type()
@@ -258,12 +323,6 @@ func decodeReflect(state *State, rv reflect.Value) error {
 			}
 		}
 		return nil
-
-	case reflect.Ptr:
-		if rv.IsNil() {
-			rv.Set(reflect.New(rv.Type().Elem()))
-		}
-		return decodeReflect(state, rv.Elem())
 
 	case reflect.String:
 		v, err := NewString().Decode(state)
