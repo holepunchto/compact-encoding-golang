@@ -6,6 +6,11 @@ type Encoder[T any] interface {
 	Decode(state *State) (T, error)
 }
 
+// MaxArrayLength is the largest element count the array decoder accepts. It
+// mirrors the JavaScript library, which refuses longer arrays before
+// allocating so a hostile length prefix cannot force a huge allocation.
+const MaxArrayLength = 0x100000
+
 type Array[T any] struct {
 	elementEncoder Encoder[T]
 }
@@ -35,6 +40,9 @@ func (a *Array[T]) Decode(state *State) ([]T, error) {
 	length, err := NewUint().Decode(state)
 	if err != nil {
 		return nil, err
+	}
+	if length > MaxArrayLength {
+		return nil, &EncodingErrorArrayTooBig{}
 	}
 	result := make([]T, length)
 	for i := range length {

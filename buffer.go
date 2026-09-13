@@ -37,11 +37,11 @@ func (b *Buffer) Decode(state *State) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state.Start+uint(length) > state.End {
+	if state.End-state.Start < length {
 		return nil, &EncodingErrorOutOfBounds{}
 	}
-	value := state.Buffer[state.Start : state.Start+uint(length)]
-	state.Start += uint(length)
+	value := state.Buffer[state.Start : state.Start+length]
+	state.Start += length
 
 	return value, nil
 }

@@ -99,7 +99,6 @@ func DecodeFrom(state *State, v any) error {
 	return decodeReflect(state, rv.Elem())
 }
 
-
 func preencodeReflect(state *State, rv reflect.Value) error {
 	switch rv.Kind() {
 	case reflect.Struct:

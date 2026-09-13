@@ -39,7 +39,7 @@ func (u *Uint16) Preencode(state *State, _value uint16) {
 }
 
 func (u *Uint16) Encode(state *State, value uint16) error {
-	if state.Start >= state.End {
+	if state.Start+2 > state.End {
 		return &EncodingErrorOutOfBounds{}
 	}
 
@@ -51,7 +51,7 @@ func (u *Uint16) Encode(state *State, value uint16) error {
 }
 
 func (u *Uint16) Decode(state *State) (uint16, error) {
-	if state.Start >= state.End {
+	if state.Start+2 > state.End {
 		return 0, &EncodingErrorOutOfBounds{}
 	}
 

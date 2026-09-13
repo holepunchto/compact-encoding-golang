@@ -13,6 +13,8 @@ func (i *Bool) Encode(state *State, value bool) error {
 
 	if value {
 		state.Buffer[state.Start] = 1
+	} else {
+		state.Buffer[state.Start] = 0
 	}
 	state.Start += 1
 

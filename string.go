@@ -29,11 +29,11 @@ func (s *String) Decode(state *State) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if state.Start+uint(int(count)) > state.End {
+	if state.End-state.Start < count {
 		return "", &EncodingErrorOutOfBounds{}
 	}
-	value := string(state.Buffer[state.Start : state.Start+uint(int(count))])
-	state.Start += uint(int(count))
+	value := string(state.Buffer[state.Start : state.Start+count])
+	state.Start += count
 	return value, nil
 }
 

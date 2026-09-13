@@ -9,3 +9,13 @@ func (e *EncodingErrorOutOfBounds) Error() string {
 func NewEncodingErrorOutOfBounds() *EncodingErrorOutOfBounds {
 	return &EncodingErrorOutOfBounds{}
 }
+
+type EncodingErrorArrayTooBig struct{}
+
+func (e *EncodingErrorArrayTooBig) Error() string {
+	return "EncodingError: Array is too big"
+}
+
+func NewEncodingErrorArrayTooBig() *EncodingErrorArrayTooBig {
+	return &EncodingErrorArrayTooBig{}
+}
