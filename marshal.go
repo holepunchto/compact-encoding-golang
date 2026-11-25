@@ -1,140 +1,130 @@
 package compactencoding
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
 
-// Marshaler is implemented by types that encode themselves. Marshal defers to it
-// for the value and for every nested field or element of such a type.
+// A Marshaler encodes itself, such as to pack fields into flags. Marshal
+// defers to it for the value and for any field or element of the type.
 type Marshaler interface {
 	Preencode(state *State)
 	Encode(state *State) error
 }
 
-// Unmarshaler is implemented by types that decode themselves; Unmarshal defers to it likewise.
+// An Unmarshaler decodes itself. Unmarshal defers to it as Marshal defers to
+// a Marshaler.
 type Unmarshaler interface {
 	Decode(state *State) error
 }
 
-var (
-	marshalerType   = reflect.TypeFor[Marshaler]()
-	unmarshalerType = reflect.TypeFor[Unmarshaler]()
-)
-
-// Marshal encodes v into compact-encoding bytes. v may be a struct, pointer to
-// struct, or any scalar type supported by the library. Struct fields are
-// encoded in declaration order. Unexported fields and fields tagged
-// `compact:"-"` are skipped. A type implementing Marshaler encodes itself.
+// Marshal encodes v, which is encoded by its type:
 //
-// Go type → codec mapping:
-//
-//	string        → string (varuint length + UTF-8 bytes)
-//	bool          → bool (1 byte)
-//	uint8         → uint8 (1 byte, fixed)
-//	uint16        → uint16 (2 bytes LE, fixed)
-//	uint32        → uint32 (4 bytes LE, fixed)
-//	uint64        → uint64 (8 bytes LE, fixed)
-//	uint          → uint (varuint, 1–9 bytes)
-//	int8          → int8 (1 byte, zigzag)
-//	int16         → int16 (2 bytes LE, zigzag)
-//	int32         → int32 (4 bytes LE, zigzag)
-//	int64         → int64 (8 bytes LE, zigzag)
-//	int           → int (varint, zigzag)
-//	[]byte        → buffer (varuint length + raw bytes)
-//	[]T           → array (varuint length + encoded elements)
-//	struct        → fields encoded in declaration order
+//   - A Marshaler encodes itself.
+//   - A struct encodes its exported fields in order, skipping any tagged
+//     `compact:"-"`.
+//   - A []byte encodes as Buffer and any other slice as Array.
+//   - A bool, string, float, or integer encodes as the codec named after its
+//     type, such as Uint16 for a uint16.
+//   - A pointer encodes as the value it points to, and must not be nil.
 func Marshal(v any) ([]byte, error) {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			return nil, fmt.Errorf("compact: Marshal of nil pointer")
-		}
-		rv = rv.Elem()
-	}
-	rv = addressable(rv)
-	state := NewState()
-	if err := preencodeReflect(state, rv); err != nil {
+	rv, err := marshalValue(v)
+	if err != nil {
 		return nil, err
 	}
+
+	var state State
+
+	if err := preencodeValue(&state, rv); err != nil {
+		return nil, err
+	}
+
 	state.Allocate()
-	if err := encodeReflect(state, rv); err != nil {
+
+	if err := encodeValue(&state, rv); err != nil {
 		return nil, err
 	}
+
 	return state.Buffer, nil
 }
 
-// Unmarshal decodes compact-encoding bytes into the value pointed to by v.
-// v must be a non-nil pointer. Fields are decoded in the same order Marshal
-// encodes them; the struct layout of v must match the encoded layout exactly.
+// Unmarshal decodes data into the value that v points to, as Marshal encodes
+// it. Pointers are allocated as needed.
 func Unmarshal(data []byte, v any) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("compact: Unmarshal requires a non-nil pointer")
-	}
-	state := &State{
-		End:    uint(len(data)),
-		Buffer: data,
-	}
-	return decodeReflect(state, rv.Elem())
+	return DecodeFrom(&State{End: len(data), Buffer: data}, v)
 }
 
-// PreencodeInto accumulates the encoded size of v into state.End without
-// writing any bytes. Use together with EncodeInto to pack multiple values into
-// a single pre-allocated buffer.
+// PreencodeInto adds the encoded size of v to state, as Marshal encodes it.
+// Together with EncodeInto, it encodes several values into one buffer.
 func PreencodeInto(state *State, v any) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			return fmt.Errorf("compact: PreencodeInto of nil pointer")
-		}
-		rv = rv.Elem()
+	rv, err := marshalValue(v)
+	if err != nil {
+		return err
 	}
-	return preencodeReflect(state, rv)
+
+	return preencodeValue(state, rv)
 }
 
-// EncodeInto writes v into state.Buffer at state.Start, advancing state.Start.
-// state.Buffer must be allocated (e.g. via state.Allocate) before calling.
+// EncodeInto encodes v at state.Start, as Marshal encodes it, once the buffer
+// is allocated.
 func EncodeInto(state *State, v any) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			return fmt.Errorf("compact: EncodeInto of nil pointer")
-		}
-		rv = rv.Elem()
+	rv, err := marshalValue(v)
+	if err != nil {
+		return err
 	}
-	return encodeReflect(state, rv)
+
+	return encodeValue(state, rv)
 }
 
-// DecodeFrom reads from state into v, advancing state.Start past the decoded bytes.
-// v must be a non-nil pointer. Use when decoding multiple values from a shared
-// State created over an existing byte slice.
+// DecodeFrom decodes a value at state.Start into the value that v points to,
+// as Unmarshal decodes it.
 func DecodeFrom(state *State, v any) error {
 	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("compact: DecodeFrom requires a non-nil pointer")
+
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return errors.New("compactencoding: decoding requires a non-nil pointer")
 	}
-	return decodeReflect(state, rv.Elem())
+
+	return decodeValue(state, rv.Elem())
 }
 
-// addressable copies rv into fresh storage when it cannot be addressed, so pointer-receiver methods are reachable.
-func addressable(rv reflect.Value) reflect.Value {
-	if rv.CanAddr() {
-		return rv
+var (
+	errNilPointer = errors.New("compactencoding: nil pointer")
+
+	marshalerType   = reflect.TypeFor[Marshaler]()
+	unmarshalerType = reflect.TypeFor[Unmarshaler]()
+	bytesType       = reflect.TypeFor[[]byte]()
+)
+
+// Copies a value that can't be addressed, so that the methods of its pointer,
+// such as those of a Marshaler, can be called.
+func marshalValue(v any) (reflect.Value, error) {
+	rv := reflect.ValueOf(v)
+
+	if !rv.IsValid() {
+		return rv, errNilPointer
 	}
+
+	if rv.Kind() == reflect.Pointer {
+		return rv, nil
+	}
+
 	p := reflect.New(rv.Type())
 	p.Elem().Set(rv)
-	return p.Elem()
+
+	return p.Elem(), nil
 }
 
-// marshaler returns rv as a Marshaler when its type, or the pointer to it, implements one.
 func marshaler(rv reflect.Value) (Marshaler, bool) {
-	if rv.Type().Implements(marshalerType) {
-		return rv.Interface().(Marshaler), true
-	}
 	if rv.CanAddr() && reflect.PointerTo(rv.Type()).Implements(marshalerType) {
 		return rv.Addr().Interface().(Marshaler), true
 	}
+
+	if rv.Type().Implements(marshalerType) {
+		return rv.Interface().(Marshaler), true
+	}
+
 	return nil, false
 }
 
@@ -142,296 +132,218 @@ func unmarshaler(rv reflect.Value) (Unmarshaler, bool) {
 	if rv.CanAddr() && reflect.PointerTo(rv.Type()).Implements(unmarshalerType) {
 		return rv.Addr().Interface().(Unmarshaler), true
 	}
+
 	if rv.Type().Implements(unmarshalerType) {
 		return rv.Interface().(Unmarshaler), true
 	}
+
 	return nil, false
 }
 
-func preencodeReflect(state *State, rv reflect.Value) error {
-	if rv.Kind() == reflect.Ptr {
+func preencodeValue(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
-			return fmt.Errorf("compact: nil pointer in value")
+			return errNilPointer
 		}
-		return preencodeReflect(state, rv.Elem())
+
+		return preencodeValue(state, rv.Elem())
 	}
+
 	if m, ok := marshaler(rv); ok {
 		m.Preencode(state)
+
 		return nil
 	}
-	switch rv.Kind() {
-	case reflect.Struct:
-		t := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() || f.Tag.Get("compact") == "-" {
-				continue
-			}
-			if err := preencodeReflect(state, rv.Field(i)); err != nil {
-				return fmt.Errorf("%s: %w", f.Name, err)
-			}
-		}
-		return nil
 
-	case reflect.String:
-		NewString().Preencode(state, rv.String())
-	case reflect.Bool:
-		NewBool().Preencode(state, rv.Bool())
-	case reflect.Uint8:
-		NewUint8().Preencode(state, uint8(rv.Uint()))
-	case reflect.Uint16:
-		NewUint16().Preencode(state, uint16(rv.Uint()))
-	case reflect.Uint32:
-		NewUint32().Preencode(state, uint32(rv.Uint()))
-	case reflect.Uint64:
-		NewUint64().Preencode(state, uint64(rv.Uint()))
-	case reflect.Uint:
-		NewUint().Preencode(state, uint(rv.Uint()))
-	case reflect.Int8:
-		NewInt8().Preencode(state, int8(rv.Int()))
-	case reflect.Int16:
-		NewInt16().Preencode(state, int16(rv.Int()))
-	case reflect.Int32:
-		NewInt32().Preencode(state, int32(rv.Int()))
-	case reflect.Int64:
-		NewInt64().Preencode(state, int64(rv.Int()))
-	case reflect.Int:
-		NewInt().Preencode(state, int(rv.Int()))
+	switch {
+	case rv.Kind() == reflect.Struct:
+		return eachField(rv, func(f reflect.Value) error {
+			return preencodeValue(state, f)
+		})
+	case isArray(rv.Type()):
+		state.End += varintSize(uint64(rv.Len()))
 
-	case reflect.Slice:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			if rv.IsNil() {
-				NewBuffer().Preencode(state, nil)
-			} else {
-				NewBuffer().Preencode(state, rv.Bytes())
-			}
-			return nil
-		}
-		length := uint(0)
-		if !rv.IsNil() {
-			length = uint(rv.Len())
-		}
-		NewUint().Preencode(state, length)
-		for i := 0; i < int(length); i++ {
-			if err := preencodeReflect(state, rv.Index(i)); err != nil {
-				return fmt.Errorf("[%d]: %w", i, err)
-			}
-		}
-		return nil
-
-	default:
-		return fmt.Errorf("compact: unsupported type %s", rv.Type())
+		return eachElement(rv, func(e reflect.Value) error {
+			return preencodeValue(state, e)
+		})
 	}
+
+	c, err := scalarFor(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	c.preencode(state, rv)
+
 	return nil
 }
 
-func encodeReflect(state *State, rv reflect.Value) error {
-	if rv.Kind() == reflect.Ptr {
+func encodeValue(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
-			return fmt.Errorf("compact: nil pointer in value")
+			return errNilPointer
 		}
-		return encodeReflect(state, rv.Elem())
+
+		return encodeValue(state, rv.Elem())
 	}
+
 	if m, ok := marshaler(rv); ok {
 		return m.Encode(state)
 	}
-	switch rv.Kind() {
-	case reflect.Struct:
-		t := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() || f.Tag.Get("compact") == "-" {
-				continue
-			}
-			if err := encodeReflect(state, rv.Field(i)); err != nil {
-				return fmt.Errorf("%s: %w", f.Name, err)
-			}
-		}
-		return nil
 
-	case reflect.String:
-		return NewString().Encode(state, rv.String())
-	case reflect.Bool:
-		return NewBool().Encode(state, rv.Bool())
-	case reflect.Uint8:
-		return NewUint8().Encode(state, uint8(rv.Uint()))
-	case reflect.Uint16:
-		return NewUint16().Encode(state, uint16(rv.Uint()))
-	case reflect.Uint32:
-		return NewUint32().Encode(state, uint32(rv.Uint()))
-	case reflect.Uint64:
-		return NewUint64().Encode(state, uint64(rv.Uint()))
-	case reflect.Uint:
-		return NewUint().Encode(state, uint(rv.Uint()))
-	case reflect.Int8:
-		return NewInt8().Encode(state, int8(rv.Int()))
-	case reflect.Int16:
-		return NewInt16().Encode(state, int16(rv.Int()))
-	case reflect.Int32:
-		return NewInt32().Encode(state, int32(rv.Int()))
-	case reflect.Int64:
-		return NewInt64().Encode(state, int64(rv.Int()))
-	case reflect.Int:
-		return NewInt().Encode(state, int(rv.Int()))
-
-	case reflect.Slice:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			if rv.IsNil() {
-				return NewBuffer().Encode(state, nil)
-			}
-			return NewBuffer().Encode(state, rv.Bytes())
-		}
-		length := uint(0)
-		if !rv.IsNil() {
-			length = uint(rv.Len())
-		}
-		if err := NewUint().Encode(state, length); err != nil {
+	switch {
+	case rv.Kind() == reflect.Struct:
+		return eachField(rv, func(f reflect.Value) error {
+			return encodeValue(state, f)
+		})
+	case isArray(rv.Type()):
+		if err := encodeVarint(state, uint64(rv.Len())); err != nil {
 			return err
 		}
-		for i := 0; i < int(length); i++ {
-			if err := encodeReflect(state, rv.Index(i)); err != nil {
-				return fmt.Errorf("[%d]: %w", i, err)
-			}
-		}
-		return nil
 
-	default:
-		return fmt.Errorf("compact: unsupported type %s", rv.Type())
+		return eachElement(rv, func(e reflect.Value) error {
+			return encodeValue(state, e)
+		})
 	}
+
+	c, err := scalarFor(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return c.encode(state, rv)
 }
 
-func decodeReflect(state *State, rv reflect.Value) error {
-	if rv.Kind() == reflect.Ptr {
+func decodeValue(state *State, rv reflect.Value) error {
+	if rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
 			rv.Set(reflect.New(rv.Type().Elem()))
 		}
-		return decodeReflect(state, rv.Elem())
+
+		return decodeValue(state, rv.Elem())
 	}
+
 	if u, ok := unmarshaler(rv); ok {
 		return u.Decode(state)
 	}
-	switch rv.Kind() {
-	case reflect.Struct:
-		t := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() || f.Tag.Get("compact") == "-" {
-				continue
-			}
-			if err := decodeReflect(state, rv.Field(i)); err != nil {
-				return fmt.Errorf("%s: %w", f.Name, err)
-			}
-		}
-		return nil
 
-	case reflect.String:
-		v, err := NewString().Decode(state)
+	switch {
+	case rv.Kind() == reflect.Struct:
+		return eachField(rv, func(f reflect.Value) error {
+			return decodeValue(state, f)
+		})
+	case isArray(rv.Type()):
+		n, err := decodeVarint(state)
 		if err != nil {
 			return err
 		}
-		rv.SetString(v)
 
-	case reflect.Bool:
-		v, err := NewBool().Decode(state)
-		if err != nil {
-			return err
+		if n > MaxArrayLength {
+			return ErrArrayTooBig
 		}
-		rv.SetBool(v)
 
-	case reflect.Uint8:
-		v, err := NewUint8().Decode(state)
-		if err != nil {
-			return err
+		rv.Set(reflect.MakeSlice(rv.Type(), int(n), int(n)))
+
+		return eachElement(rv, func(e reflect.Value) error {
+			return decodeValue(state, e)
+		})
+	}
+
+	c, err := scalarFor(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return c.decode(state, rv)
+}
+
+func isArray(t reflect.Type) bool {
+	return t.Kind() == reflect.Slice && !t.ConvertibleTo(bytesType)
+}
+
+func eachField(rv reflect.Value, fn func(reflect.Value) error) error {
+	t := rv.Type()
+
+	for i := range t.NumField() {
+		f := t.Field(i)
+
+		if !f.IsExported() || f.Tag.Get("compact") == "-" {
+			continue
 		}
-		rv.SetUint(uint64(v))
 
-	case reflect.Uint16:
-		v, err := NewUint16().Decode(state)
-		if err != nil {
-			return err
+		if err := fn(rv.Field(i)); err != nil {
+			return fmt.Errorf("%s: %w", f.Name, err)
 		}
-		rv.SetUint(uint64(v))
+	}
 
-	case reflect.Uint32:
-		v, err := NewUint32().Decode(state)
-		if err != nil {
-			return err
+	return nil
+}
+
+func eachElement(rv reflect.Value, fn func(reflect.Value) error) error {
+	for i := range rv.Len() {
+		if err := fn(rv.Index(i)); err != nil {
+			return fmt.Errorf("[%d]: %w", i, err)
 		}
-		rv.SetUint(uint64(v))
+	}
 
-	case reflect.Uint64:
-		v, err := NewUint64().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetUint(v)
+	return nil
+}
 
-	case reflect.Uint:
-		v, err := NewUint().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetUint(uint64(v))
+type scalarCodec struct {
+	preencode func(*State, reflect.Value)
+	encode    func(*State, reflect.Value) error
+	decode    func(*State, reflect.Value) error
+}
 
-	case reflect.Int8:
-		v, err := NewInt8().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetInt(int64(v))
+// Values are converted to and from the type of the codec, so that named
+// types, such as `type ID uint32`, encode as their underlying type.
+func scalar[T any](codec Codec[T]) scalarCodec {
+	t := reflect.TypeFor[T]()
 
-	case reflect.Int16:
-		v, err := NewInt16().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetInt(int64(v))
-
-	case reflect.Int32:
-		v, err := NewInt32().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetInt(int64(v))
-
-	case reflect.Int64:
-		v, err := NewInt64().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetInt(v)
-
-	case reflect.Int:
-		v, err := NewInt().Decode(state)
-		if err != nil {
-			return err
-		}
-		rv.SetInt(int64(v))
-
-	case reflect.Slice:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			v, err := NewBuffer().Decode(state)
+	return scalarCodec{
+		preencode: func(state *State, rv reflect.Value) {
+			codec.Preencode(state, rv.Convert(t).Interface().(T))
+		},
+		encode: func(state *State, rv reflect.Value) error {
+			return codec.Encode(state, rv.Convert(t).Interface().(T))
+		},
+		decode: func(state *State, rv reflect.Value) error {
+			v, err := codec.Decode(state)
 			if err != nil {
 				return err
 			}
-			rv.SetBytes(v)
-			return nil
-		}
-		length, err := NewUint().Decode(state)
-		if err != nil {
-			return err
-		}
-		slice := reflect.MakeSlice(rv.Type(), int(length), int(length))
-		for i := 0; i < int(length); i++ {
-			if err := decodeReflect(state, slice.Index(i)); err != nil {
-				return fmt.Errorf("[%d]: %w", i, err)
-			}
-		}
-		rv.Set(slice)
-		return nil
 
-	default:
-		return fmt.Errorf("compact: unsupported type %s", rv.Type())
+			rv.Set(reflect.ValueOf(v).Convert(rv.Type()))
+
+			return nil
+		},
 	}
-	return nil
+}
+
+var scalars = map[reflect.Kind]scalarCodec{
+	reflect.Bool:    scalar(Bool),
+	reflect.String:  scalar(String),
+	reflect.Uint:    scalar(Uint),
+	reflect.Uint8:   scalar(Uint8),
+	reflect.Uint16:  scalar(Uint16),
+	reflect.Uint32:  scalar(Uint32),
+	reflect.Uint64:  scalar(Uint64),
+	reflect.Int:     scalar(Int),
+	reflect.Int8:    scalar(Int8),
+	reflect.Int16:   scalar(Int16),
+	reflect.Int32:   scalar(Int32),
+	reflect.Int64:   scalar(Int64),
+	reflect.Float32: scalar(Float32),
+	reflect.Float64: scalar(Float64),
+	reflect.Slice:   scalar(Buffer),
+}
+
+func scalarFor(t reflect.Type) (scalarCodec, error) {
+	c, ok := scalars[t.Kind()]
+
+	if !ok {
+		return c, fmt.Errorf("compactencoding: unsupported type %s", t)
+	}
+
+	return c, nil
 }
