@@ -1,206 +1,218 @@
 package compactencoding
 
-type Uint8 struct{}
+import (
+	"encoding/binary"
+	"math"
+)
 
-func (u *Uint8) Preencode(state *State, _value uint8) {
-	state.End += 1
+// The unsigned integer codecs. Uint writes a variable number of bytes, as
+// few as the value needs, while the others write a fixed number of bytes in
+// little-endian order.
+var (
+	Uint   Codec[uint]   = uintCodec{}
+	Uint8  Codec[uint8]  = uint8Codec{}
+	Uint16 Codec[uint16] = uint16Codec{}
+	Uint32 Codec[uint32] = uint32Codec{}
+	Uint64 Codec[uint64] = uint64Codec{}
+)
+
+type uint8Codec struct{}
+
+func (uint8Codec) Preencode(state *State, _ uint8) {
+	state.End++
 }
 
-func (u *Uint8) Encode(state *State, value uint8) error {
-	if state.Start >= state.End {
-		return &EncodingErrorOutOfBounds{}
+func (uint8Codec) Encode(state *State, value uint8) error {
+	b, err := state.take(1)
+	if err != nil {
+		return err
 	}
 
-	state.Buffer[state.Start] = value
-	state.Start += 1
+	b[0] = value
 
 	return nil
 }
 
-func (u *Uint8) Decode(state *State) (uint8, error) {
-	if state.Start >= state.End {
-		return 0, &EncodingErrorOutOfBounds{}
-	}
-
-	value := state.Buffer[state.Start]
-	state.Start += 1
-
-	return value, nil
-}
-
-func NewUint8() *Uint8 {
-	return &Uint8{}
-}
-
-type Uint16 struct{}
-
-func (u *Uint16) Preencode(state *State, _value uint16) {
-	state.End += 2
-}
-
-func (u *Uint16) Encode(state *State, value uint16) error {
-	if state.Start+2 > state.End {
-		return &EncodingErrorOutOfBounds{}
-	}
-
-	state.Buffer[state.Start] = byte(value & 0xff)
-	state.Buffer[state.Start+1] = byte((value >> 8) & 0xff)
-	state.Start += 2
-
-	return nil
-}
-
-func (u *Uint16) Decode(state *State) (uint16, error) {
-	if state.Start+2 > state.End {
-		return 0, &EncodingErrorOutOfBounds{}
-	}
-
-	value := uint16(state.Buffer[state.Start]) | uint16(state.Buffer[state.Start+1])<<8
-	state.Start += 2
-
-	return value, nil
-}
-
-func NewUint16() *Uint16 {
-	return &Uint16{}
-}
-
-type Uint32 struct{}
-
-func (u *Uint32) Preencode(state *State, _value uint32) {
-	state.End += 4
-}
-
-func (u *Uint32) Encode(state *State, value uint32) error {
-	if state.Start+4 > state.End {
-		return &EncodingErrorOutOfBounds{}
-	}
-	state.Buffer[state.Start] = byte(value)
-	state.Buffer[state.Start+1] = byte(value >> 8)
-	state.Buffer[state.Start+2] = byte(value >> 16)
-	state.Buffer[state.Start+3] = byte(value >> 24)
-	state.Start += 4
-	return nil
-}
-
-func (u *Uint32) Decode(state *State) (uint32, error) {
-	if state.Start+4 > state.End {
-		return 0, &EncodingErrorOutOfBounds{}
-	}
-	value := uint32(state.Buffer[state.Start]) |
-		uint32(state.Buffer[state.Start+1])<<8 |
-		uint32(state.Buffer[state.Start+2])<<16 |
-		uint32(state.Buffer[state.Start+3])<<24
-	state.Start += 4
-	return value, nil
-}
-
-func NewUint32() *Uint32 {
-	return &Uint32{}
-}
-
-type Uint64 struct{}
-
-func (u *Uint64) Preencode(state *State, _value uint64) {
-	state.End += 8
-}
-
-func (u *Uint64) Encode(state *State, value uint64) error {
-	if state.Start+8 > state.End {
-		return &EncodingErrorOutOfBounds{}
-	}
-	state.Buffer[state.Start] = byte(value)
-	state.Buffer[state.Start+1] = byte(value >> 8)
-	state.Buffer[state.Start+2] = byte(value >> 16)
-	state.Buffer[state.Start+3] = byte(value >> 24)
-	state.Buffer[state.Start+4] = byte(value >> 32)
-	state.Buffer[state.Start+5] = byte(value >> 40)
-	state.Buffer[state.Start+6] = byte(value >> 48)
-	state.Buffer[state.Start+7] = byte(value >> 56)
-	state.Start += 8
-	return nil
-}
-
-func (u *Uint64) Decode(state *State) (uint64, error) {
-	if state.Start+8 > state.End {
-		return 0, &EncodingErrorOutOfBounds{}
-	}
-	value := uint64(state.Buffer[state.Start]) |
-		uint64(state.Buffer[state.Start+1])<<8 |
-		uint64(state.Buffer[state.Start+2])<<16 |
-		uint64(state.Buffer[state.Start+3])<<24 |
-		uint64(state.Buffer[state.Start+4])<<32 |
-		uint64(state.Buffer[state.Start+5])<<40 |
-		uint64(state.Buffer[state.Start+6])<<48 |
-		uint64(state.Buffer[state.Start+7])<<56
-	state.Start += 8
-	return value, nil
-}
-
-func NewUint64() *Uint64 {
-	return &Uint64{}
-}
-
-type Uint struct{}
-
-func (u *Uint) Preencode(state *State, value uint) {
-	if value <= 0xfc {
-		state.End += 1
-	} else if value <= 0xffff {
-		state.End += 3
-	} else if value <= 0xffffffff {
-		state.End += 5
-	} else {
-		state.End += 9
-	}
-}
-
-func (u *Uint) Encode(state *State, value uint) error {
-	if value <= 0xfc {
-		return NewUint8().Encode(state, uint8(value))
-	}
-	if state.Start >= state.End {
-		return &EncodingErrorOutOfBounds{}
-	}
-	if value <= 0xffff {
-		state.Buffer[state.Start] = 0xfd
-		state.Start += 1
-		return NewUint16().Encode(state, uint16(value))
-	}
-	if value <= 0xffffffff {
-		state.Buffer[state.Start] = 0xfe
-		state.Start += 1
-		return NewUint32().Encode(state, uint32(value))
-	}
-	state.Buffer[state.Start] = 0xff
-	state.Start += 1
-	return NewUint64().Encode(state, uint64(value))
-}
-
-func (u *Uint) Decode(state *State) (uint, error) {
-	if state.Start >= state.End {
-		return 0, &EncodingErrorOutOfBounds{}
-	}
-	value, err := NewUint8().Decode(state)
+func (uint8Codec) Decode(state *State) (uint8, error) {
+	b, err := state.take(1)
 	if err != nil {
 		return 0, err
 	}
-	if value <= 0xfc {
-		return uint(value), nil
-	}
-	if value == 0xfd {
-		v, err := NewUint16().Decode(state)
-		return uint(v), err
-	}
-	if value == 0xfe {
-		v, err := NewUint32().Decode(state)
-		return uint(v), err
-	}
 
-	v, err := NewUint64().Decode(state)
-	return uint(v), err
+	return b[0], nil
 }
 
-func NewUint() *Uint {
-	return &Uint{}
+type uint16Codec struct{}
+
+func (uint16Codec) Preencode(state *State, _ uint16) {
+	state.End += 2
+}
+
+func (uint16Codec) Encode(state *State, value uint16) error {
+	b, err := state.take(2)
+	if err != nil {
+		return err
+	}
+
+	binary.LittleEndian.PutUint16(b, value)
+
+	return nil
+}
+
+func (uint16Codec) Decode(state *State) (uint16, error) {
+	b, err := state.take(2)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.LittleEndian.Uint16(b), nil
+}
+
+type uint32Codec struct{}
+
+func (uint32Codec) Preencode(state *State, _ uint32) {
+	state.End += 4
+}
+
+func (uint32Codec) Encode(state *State, value uint32) error {
+	b, err := state.take(4)
+	if err != nil {
+		return err
+	}
+
+	binary.LittleEndian.PutUint32(b, value)
+
+	return nil
+}
+
+func (uint32Codec) Decode(state *State) (uint32, error) {
+	b, err := state.take(4)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.LittleEndian.Uint32(b), nil
+}
+
+type uint64Codec struct{}
+
+func (uint64Codec) Preencode(state *State, _ uint64) {
+	state.End += 8
+}
+
+func (uint64Codec) Encode(state *State, value uint64) error {
+	b, err := state.take(8)
+	if err != nil {
+		return err
+	}
+
+	binary.LittleEndian.PutUint64(b, value)
+
+	return nil
+}
+
+func (uint64Codec) Decode(state *State) (uint64, error) {
+	b, err := state.take(8)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.LittleEndian.Uint64(b), nil
+}
+
+type uintCodec struct{}
+
+func (uintCodec) Preencode(state *State, value uint) {
+	state.End += varintSize(uint64(value))
+}
+
+func (uintCodec) Encode(state *State, value uint) error {
+	return encodeVarint(state, uint64(value))
+}
+
+func (uintCodec) Decode(state *State) (uint, error) {
+	v, err := decodeVarint(state)
+	if err != nil {
+		return 0, err
+	}
+
+	if v > math.MaxUint {
+		return 0, ErrOverflow
+	}
+
+	return uint(v), nil
+}
+
+// A varint is a single byte below 0xfd, or a byte of 0xfd, 0xfe, or 0xff
+// followed by the value in 2, 4, or 8 bytes.
+func varintSize(v uint64) int {
+	switch {
+	case v <= 0xfc:
+		return 1
+	case v <= 0xffff:
+		return 3
+	case v <= 0xffffffff:
+		return 5
+	default:
+		return 9
+	}
+}
+
+func encodeVarint(state *State, v uint64) error {
+	b, err := state.take(varintSize(v))
+	if err != nil {
+		return err
+	}
+
+	switch len(b) {
+	case 1:
+		b[0] = byte(v)
+	case 3:
+		b[0] = 0xfd
+		binary.LittleEndian.PutUint16(b[1:], uint16(v))
+	case 5:
+		b[0] = 0xfe
+		binary.LittleEndian.PutUint32(b[1:], uint32(v))
+	default:
+		b[0] = 0xff
+		binary.LittleEndian.PutUint64(b[1:], v)
+	}
+
+	return nil
+}
+
+func decodeVarint(state *State) (uint64, error) {
+	prefix, err := Uint8.Decode(state)
+	if err != nil {
+		return 0, err
+	}
+
+	switch prefix {
+	case 0xfd:
+		v, err := Uint16.Decode(state)
+
+		return uint64(v), err
+	case 0xfe:
+		v, err := Uint32.Decode(state)
+
+		return uint64(v), err
+	case 0xff:
+		return Uint64.Decode(state)
+	default:
+		return uint64(prefix), nil
+	}
+}
+
+// Decodes a length prefix, failing if fewer bytes than that are left.
+func decodeLength(state *State) (int, error) {
+	n, err := decodeVarint(state)
+	if err != nil {
+		return 0, err
+	}
+
+	if n > uint64(state.End-state.Start) {
+		return 0, ErrOutOfBounds
+	}
+
+	return int(n), nil
 }

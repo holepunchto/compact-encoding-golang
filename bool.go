@@ -1,37 +1,26 @@
 package compactencoding
 
-type Bool struct{}
+// Bool writes a single byte of 1 or 0. It decodes any byte but 1 as false.
+var Bool Codec[bool] = boolCodec{}
 
-func (i *Bool) Preencode(state *State, _value bool) {
-	state.End += 1
+type boolCodec struct{}
+
+func (boolCodec) Preencode(state *State, _ bool) {
+	state.End++
 }
 
-func (i *Bool) Encode(state *State, value bool) error {
-	if state.Start >= state.End {
-		return &EncodingErrorOutOfBounds{}
-	}
+func (boolCodec) Encode(state *State, value bool) error {
+	var b uint8
 
 	if value {
-		state.Buffer[state.Start] = 1
-	} else {
-		state.Buffer[state.Start] = 0
-	}
-	state.Start += 1
-
-	return nil
-}
-
-func (i *Bool) Decode(state *State) (bool, error) {
-	if state.Start >= state.End {
-		return false, &EncodingErrorOutOfBounds{}
+		b = 1
 	}
 
-	value := state.Buffer[state.Start]
-	state.Start += 1
-
-	return value == 1, nil
+	return Uint8.Encode(state, b)
 }
 
-func NewBool() *Bool {
-	return &Bool{}
+func (boolCodec) Decode(state *State) (bool, error) {
+	b, err := Uint8.Decode(state)
+
+	return b == 1, err
 }

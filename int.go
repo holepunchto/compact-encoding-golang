@@ -1,117 +1,111 @@
 package compactencoding
 
-type Int8 struct{}
+import "math"
 
-func (i *Int8) Preencode(state *State, _value int8) {
-	state.End += 1
+// The signed integer codecs, which zigzag the value into an unsigned one,
+// mapping 0, -1, 1, -2 to 0, 1, 2, 3, and write it as the unsigned codec of
+// the same width does.
+var (
+	Int   Codec[int]   = intCodec{}
+	Int8  Codec[int8]  = int8Codec{}
+	Int16 Codec[int16] = int16Codec{}
+	Int32 Codec[int32] = int32Codec{}
+	Int64 Codec[int64] = int64Codec{}
+)
+
+func zigzag(v int64) uint64 {
+	return uint64(v<<1) ^ uint64(v>>63)
 }
 
-func (i *Int8) Encode(state *State, value int8) error {
-	Encoded := uint8((value << 1) ^ (value >> 7))
-	return NewUint8().Encode(state, Encoded)
+func unzigzag(v uint64) int64 {
+	return int64(v>>1) ^ -int64(v&1)
 }
 
-func (i *Int8) Decode(state *State) (int8, error) {
-	v, err := NewUint8().Decode(state)
-	if err != nil {
-		return 0, err
-	}
-	return int8((v >> 1) ^ -(v & 1)), nil
+type int8Codec struct{}
+
+func (int8Codec) Preencode(state *State, _ int8) {
+	state.End++
 }
 
-func NewInt8() *Int8 {
-	return &Int8{}
+func (int8Codec) Encode(state *State, value int8) error {
+	return Uint8.Encode(state, uint8(zigzag(int64(value))))
 }
 
-type Int16 struct{}
+func (int8Codec) Decode(state *State) (int8, error) {
+	v, err := Uint8.Decode(state)
 
-func (i *Int16) Preencode(state *State, _value int16) {
+	return int8(unzigzag(uint64(v))), err
+}
+
+type int16Codec struct{}
+
+func (int16Codec) Preencode(state *State, _ int16) {
 	state.End += 2
 }
 
-func (i *Int16) Encode(state *State, value int16) error {
-	Encoded := uint16((value << 1) ^ (value >> 15))
-	return NewUint16().Encode(state, Encoded)
+func (int16Codec) Encode(state *State, value int16) error {
+	return Uint16.Encode(state, uint16(zigzag(int64(value))))
 }
 
-func (i *Int16) Decode(state *State) (int16, error) {
-	v, err := NewUint16().Decode(state)
-	if err != nil {
-		return 0, err
-	}
-	return int16((v >> 1) ^ -(v & 1)), nil
+func (int16Codec) Decode(state *State) (int16, error) {
+	v, err := Uint16.Decode(state)
+
+	return int16(unzigzag(uint64(v))), err
 }
 
-func NewInt16() *Int16 {
-	return &Int16{}
-}
+type int32Codec struct{}
 
-type Int32 struct{}
-
-func (i *Int32) Preencode(state *State, _value int32) {
+func (int32Codec) Preencode(state *State, _ int32) {
 	state.End += 4
 }
 
-func (i *Int32) Encode(state *State, value int32) error {
-	Encoded := uint32((value << 1) ^ (value >> 31))
-	return NewUint32().Encode(state, Encoded)
+func (int32Codec) Encode(state *State, value int32) error {
+	return Uint32.Encode(state, uint32(zigzag(int64(value))))
 }
 
-func (i *Int32) Decode(state *State) (int32, error) {
-	v, err := NewUint32().Decode(state)
-	if err != nil {
-		return 0, err
-	}
-	return int32((v >> 1) ^ -(v & 1)), nil
+func (int32Codec) Decode(state *State) (int32, error) {
+	v, err := Uint32.Decode(state)
+
+	return int32(unzigzag(uint64(v))), err
 }
 
-func NewInt32() *Int32 {
-	return &Int32{}
-}
+type int64Codec struct{}
 
-type Int64 struct{}
-
-func (i *Int64) Preencode(state *State, _value int64) {
+func (int64Codec) Preencode(state *State, _ int64) {
 	state.End += 8
 }
 
-func (i *Int64) Encode(state *State, value int64) error {
-	Encoded := uint64((value << 1) ^ (value >> 63))
-	return NewUint64().Encode(state, Encoded)
+func (int64Codec) Encode(state *State, value int64) error {
+	return Uint64.Encode(state, zigzag(value))
 }
 
-func (i *Int64) Decode(state *State) (int64, error) {
-	v, err := NewUint64().Decode(state)
+func (int64Codec) Decode(state *State) (int64, error) {
+	v, err := Uint64.Decode(state)
+
+	return unzigzag(v), err
+}
+
+type intCodec struct{}
+
+func (intCodec) Preencode(state *State, value int) {
+	state.End += varintSize(zigzag(int64(value)))
+}
+
+func (intCodec) Encode(state *State, value int) error {
+	return encodeVarint(state, zigzag(int64(value)))
+}
+
+func (intCodec) Decode(state *State) (int, error) {
+	v, err := decodeVarint(state)
 	if err != nil {
 		return 0, err
 	}
-	return int64((v >> 1) ^ -(v & 1)), nil
-}
 
-func NewInt64() *Int64 {
-	return &Int64{}
-}
+	n := unzigzag(v)
 
-type Int struct{}
-
-func (i *Int) Preencode(state *State, value int) {
-	Encoded := uint((value << 1) ^ (value >> 63))
-	NewUint().Preencode(state, Encoded)
-}
-
-func (i *Int) Encode(state *State, value int) error {
-	Encoded := uint((value << 1) ^ (value >> 63))
-	return NewUint().Encode(state, Encoded)
-}
-
-func (i *Int) Decode(state *State) (int, error) {
-	v, err := NewUint().Decode(state)
-	if err != nil {
-		return 0, err
+	if n < math.MinInt || n > math.MaxInt {
+		return 0, ErrOverflow
 	}
-	return int((v >> 1) ^ -(v & 1)), nil
-}
 
-func NewInt() *Int {
-	return &Int{}
+	return int(n), nil
 }

@@ -1,142 +1,132 @@
-# compact-encoding (Go)
+# compact-encoding-golang
 
-> 🚧 **Work in Progress** - A Go port of [compact-encoding](https://github.com/holepunchto/compact-encoding)
+Compact encoding schemes for Go. The Go counterpart of [compact-encoding](https://github.com/holepunchto/compact-encoding), and wire compatible with it.
 
-A compact binary encoding library for Bare/Pear interop.
-
-## Overview
-
-This is a Go implementation of the compact-encoding format, providing efficient binary serialization with minimal overhead. The library uses a two-pass encoding strategy: a preencode pass to calculate buffer size, followed by the actual encoding.
-
-## Installation
-```bash
-go get github.com/holepunchto/compact-encoding-golang
 ```
-
-## Features
-
-- ✅ Variable-length integer encoding (uint, int)
-- ✅ Fixed-size integer types (uint8, uint16, uint32, uint64, int8, int16, int32, int64)
-- ✅ String encoding
-- ✅ Buffer/byte slice encoding (`Buffer`, and `OptionalBuffer` for nil-able payloads)
-- ✅ Boolean encoding
-- ✅ Array encoding with generic element types
-- ✅ Generic `Decode`/`Encode` helpers
+go get github.com/holepunchto/compact-encoding-golang/v2
+```
 
 ## Usage
 
-### Basic Example
+Encode and decode a single value with `Encode()` and `Decode()`:
+
 ```go
 package main
 
 import (
-    "fmt"
-    enc "github.com/holepunchto/compact-encoding-golang"
+	"fmt"
+
+	c "github.com/holepunchto/compact-encoding-golang/v2"
 )
 
 func main() {
-    // Using the helper functions
-    encoder := enc.NewInt()
-    
-    // Encode
-    buf, err := enc.Encode(encoder, 42)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Encoded: %v\n", buf)
-    
-    // Decode
-    value, err := enc.Decode(encoder, buf)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Decoded: %d\n", value)
+	data, err := c.Encode(c.Uint, 42)
+	if err != nil {
+		panic(err)
+	}
+
+	value, err := c.Decode(c.Uint, data)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(value) // 42
 }
 ```
 
-### Manually
+To encode several values into one buffer, use a `State` directly. `Preencode()` sums the size of each value, `Allocate()` allocates the buffer, and `Encode()` writes each value. Decoding reads them back from the start:
+
 ```go
-state := enc.NewState()
-encoder := enc.NewString()
+var state c.State
 
-// Preencode to calculate size
-encoder.Preencode(state, "hello")
-state.Allocate() // Create the buffer
+c.Uint.Preencode(&state, 42)
+c.String.Preencode(&state, "hi")
 
-// Encode
-err := encoder.Encode(state, "hello")
-if err != nil {
-    panic(err)
+state.Allocate()
+
+c.Uint.Encode(&state, 42)
+c.String.Encode(&state, "hi")
+
+state.Start = 0
+
+n, _ := c.Uint.Decode(&state) // 42
+s, _ := c.String.Decode(&state) // "hi"
+```
+
+Decoding fails with `ErrOutOfBounds` for input that ends early and leaves any bytes after the value for the next decode.
+
+## Codecs
+
+Every codec is a `Codec[T]`.
+
+| Codec                                              | Go value                                         |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `Uint`, `Uint8`, `Uint16`, `Uint32`, `Uint64`      | unsigned integers, `Uint` as a varint            |
+| `Int`, `Int8`, `Int16`, `Int32`, `Int64`           | signed integers, zigzagged, `Int` as a varint    |
+| `Float32`, `Float64`                               | floating point                                   |
+| `Bool`                                             | `bool`                                           |
+| `String`                                           | `string`, as UTF-8                               |
+| `Buffer`, `OptionalBuffer`                         | `[]byte`, where `OptionalBuffer` decodes empty as `nil` |
+| `Array(codec)`                                     | `[]T`                                            |
+| `Record(key, value)`                               | `map[K]V`, encoded in the order of its keys      |
+| `Frame(codec)`                                     | `T`, prefixed with its encoded length            |
+| `JSON[T]()`                                        | `T`, as a `String` of its JSON encoding          |
+
+Unlike in JavaScript, integers carry their full 64-bit range. Values above 2^53 - 1 decode in Go but fail to decode in JavaScript, unless decoded there with the `biguint` and `bigint` codecs.
+
+## Custom codecs
+
+Implement `Codec[T]` to encode your own types. `Preencode()` sizes a value, `Encode()` writes it, and `Decode()` reads it back:
+
+```go
+type Point struct {
+	X, Y uint
 }
 
-// Decode
-state.Rewind()
-value, err := encoder.Decode(state)
+type pointCodec struct{}
+
+func (pointCodec) Preencode(state *c.State, p Point) {
+	c.Uint.Preencode(state, p.X)
+	c.Uint.Preencode(state, p.Y)
+}
+
+func (pointCodec) Encode(state *c.State, p Point) error {
+	if err := c.Uint.Encode(state, p.X); err != nil {
+		return err
+	}
+
+	return c.Uint.Encode(state, p.Y)
+}
+
+func (pointCodec) Decode(state *c.State) (p Point, err error) {
+	if p.X, err = c.Uint.Decode(state); err != nil {
+		return p, err
+	}
+
+	p.Y, err = c.Uint.Decode(state)
+
+	return p, err
+}
 ```
 
-### Array Encoding
+## Reflection
+
+`Marshal()` and `Unmarshal()` encode a value by its type, which saves writing a codec for plain structs. A struct encodes its exported fields in order, a `[]byte` as `Buffer`, any other slice as `Array`, and a scalar as the codec named after its type:
+
 ```go
-// Array of strings
-encoder := enc.NewArray(enc.NewString())
-buf, err := enc.Encode(encoder, []string{"hello", "world"})
+type Point struct {
+	X, Y uint
+}
 
-// Array of uints
-uintEncoder := enc.NewArray(enc.NewUint())
-buf, err := enc.Encode(uintEncoder, []uint{1, 2, 3})
+data, err := c.Marshal(Point{X: 1, Y: 2})
+
+var p Point
+
+err = c.Unmarshal(data, &p)
 ```
 
-## API
-
-### Encoders
-
-- `NewUint()` - Variable-length unsigned integer
-- `NewInt()` - Variable-length signed integer (zigzag encoding)
-- `NewUint8()`, `NewUint16()`, `NewUint32()`, `NewUint64()` - Fixed-size unsigned integers
-- `NewInt8()`, `NewInt16()`, `NewInt32()`, `NewInt64()` - Fixed-size signed integers
-- `NewString()` - UTF-8 string encoding
-- `NewBuffer()` - Byte slice encoding
-- `NewOptionalBuffer()` - Byte slice encoding where `nil` is a distinct value (decodes empty payloads as `nil`)
-- `NewBool()` - Boolean encoding
-- `NewArray(elementEncoder)` - Generic array encoding
-
-### Helper Functions
-```go
-func Encode[T any](encoder Encoder[T], value T) ([]byte, error)
-func Decode[T any](encoder Encoder[T], data []byte) (T, error)
-```
-
-## Development
-
-Run tests:
-```bash
-go test .
-```
-
-## Compatibility
-
-This implementation is wire-compatible with the JavaScript [compact-encoding](https://github.com/holepunchto/compact-encoding) library, last verified against **v3.5.0**.
-
-`testdata/vectors.json` holds byte vectors produced by the JS library for every codec ported here. `go test` replays them in both directions (Go encode must match JS bytes, Go decode must read JS bytes back). Regenerate them from a checkout of the JS library with its dependencies installed:
-
-```bash
-node testdata/gen-vectors.js /path/to/compact-encoding > testdata/vectors.json
-```
-
-Behaviour shared with the JS library:
-
-- `buffer` follows the JS 3.x semantics: a `nil` slice encodes as length `0` and an empty payload decodes to an empty (non-nil) slice, never `nil`. `optionalBuffer` keeps the pre-3.0 behaviour and decodes an empty payload as `nil`. Both share the same bytes on the wire.
-- `array` refuses to decode more than `MaxArrayLength` (`0x100000`) elements, returning `EncodingErrorArrayTooBig`, exactly as the JS decoder throws `Array is too big`.
-- Truncated or oversized input returns `EncodingErrorOutOfBounds` rather than panicking.
-
-Differences to be aware of:
-
-- **Integer range.** JS numbers are IEEE doubles, so the JS library rejects `uint`/`uint64` values above `2^53 - 1` and `int`/`int64` values outside `±2^52` (it throws on both encode and decode). Go encodes the full 64-bit range. Values outside the JS-safe range will round-trip between Go peers but fail to decode in JS; use the JS `biguint64`/`bigint64`/`biguint`/`bigint` codecs on that side, which share the fixed 8-byte wire format with Go `uint64`/`int64`.
-- **Unported codecs.** The JS library also ships `uint24`, `uint40`, `uint48`, `uint56`, `uint32be`, `uint64be` and their `int` counterparts, `biguint`/`bigint`, `lexint`, `float32`/`float64`, `binary`, `arraybuffer`, `bitarray`, typed arrays, `ascii`/`hex`/`base64`/`utf16le` strings, `fixed(n)` and `fixed8..64`, `frame`, `date`, `json`/`ndjson`, `none`, `any`, `record`/`stringRecord`, the `ip`/`port`/`*Address` network codecs, and the `raw` (unframed) variants. None of these exist in the Go port yet.
+Tag a field with `compact:"-"` to skip it, and implement `Marshaler` and `Unmarshaler` for a type that needs to encode itself.
 
 ## License
 
 Apache-2.0
-
-## Related
-
-- [compact-encoding](https://github.com/holepunchto/compact-encoding) - Original JavaScript implementation

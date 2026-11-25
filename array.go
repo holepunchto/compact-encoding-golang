@@ -1,59 +1,59 @@
 package compactencoding
 
-type Encoder[T any] interface {
-	Preencode(state *State, value T)
-	Encode(state *State, value T) error
-	Decode(state *State) (T, error)
-}
-
-// MaxArrayLength is the largest element count the array decoder accepts. It
-// mirrors the JavaScript library, which refuses longer arrays before
-// allocating so a hostile length prefix cannot force a huge allocation.
+// MaxArrayLength is the most elements that an array decodes, so that a
+// hostile length can't force a huge allocation.
 const MaxArrayLength = 0x100000
 
-type Array[T any] struct {
-	elementEncoder Encoder[T]
+// Array returns a codec that writes the length of a slice followed by its
+// elements, each encoded with codec. Decoding an array of more than
+// MaxArrayLength elements fails with ErrArrayTooBig.
+func Array[T any](codec Codec[T]) Codec[[]T] {
+	return arrayCodec[T]{codec}
 }
 
-func (a *Array[T]) Preencode(state *State, value []T) {
-	NewUint().Preencode(state, uint(len(value)))
-	for _, e := range value {
-		a.elementEncoder.Preencode(state, e)
+type arrayCodec[T any] struct {
+	codec Codec[T]
+}
+
+func (c arrayCodec[T]) Preencode(state *State, value []T) {
+	state.End += varintSize(uint64(len(value)))
+
+	for _, v := range value {
+		c.codec.Preencode(state, v)
 	}
 }
 
-func (a *Array[T]) Encode(state *State, value []T) error {
-	err := NewUint().Encode(state, uint(len(value)))
-	if err != nil {
+func (c arrayCodec[T]) Encode(state *State, value []T) error {
+	if err := encodeVarint(state, uint64(len(value))); err != nil {
 		return err
 	}
-	for _, e := range value {
-		err = a.elementEncoder.Encode(state, e)
-		if err != nil {
+
+	for _, v := range value {
+		if err := c.codec.Encode(state, v); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-func (a *Array[T]) Decode(state *State) ([]T, error) {
-	length, err := NewUint().Decode(state)
+func (c arrayCodec[T]) Decode(state *State) ([]T, error) {
+	n, err := decodeVarint(state)
 	if err != nil {
 		return nil, err
 	}
-	if length > MaxArrayLength {
-		return nil, &EncodingErrorArrayTooBig{}
+
+	if n > MaxArrayLength {
+		return nil, ErrArrayTooBig
 	}
-	result := make([]T, length)
-	for i := range length {
-		result[i], err = a.elementEncoder.Decode(state)
-		if err != nil {
+
+	value := make([]T, n)
+
+	for i := range value {
+		if value[i], err = c.codec.Decode(state); err != nil {
 			return nil, err
 		}
 	}
-	return result, nil
-}
 
-func NewArray[T any](elementEncoder Encoder[T]) *Array[T] {
-	return &Array[T]{elementEncoder: elementEncoder}
+	return value, nil
 }
